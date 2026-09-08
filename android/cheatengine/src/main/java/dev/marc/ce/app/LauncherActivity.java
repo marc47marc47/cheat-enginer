@@ -7,6 +7,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -19,37 +20,53 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
 import dev.marc.ce.overlay.NativeBridge;
 
 /**
  * The Cheat Engine app's own screen: grant the permission, start the engine,
- * jump to the game.
+ * pick a target.
  *
- * <p>It also diagnoses the one thing that silently breaks everything. This APK
- * can only read the game's memory because both packages declare the same
- * {@code sharedUserId} and the same {@code android:process}, which puts them in
- * one OS process - no root, no ptrace, nothing to be denied by SELinux. If that
- * failed (usually because one package was installed before the manifest carried
- * the attribute, so its UID was already fixed) everything still launches and
- * scans simply find nothing. So the status block prints the pid and uid and
- * says outright when the game is not in the same shared user.
+ * <p>The target list is <em>discovered</em>, not hardcoded. Any app declaring
+ * the same {@code sharedUserId} lands in this app's uid, and any of those that
+ * also declares the same {@code android:process} lands in this app's process -
+ * which is the only thing that makes it scannable. So the launcher asks the
+ * system who its housemates are instead of naming one, and says plainly which
+ * of them actually share the process.
+ *
+ * <p>That distinction is the entire diagnostic. Same uid but a different
+ * process name is the failure mode that produces no error at all: both apps
+ * install, both run, and scans simply find nothing.
  */
 public final class LauncherActivity extends Activity {
 
-    private static final String GAME = "dev.marc.ce.game";
-
     private static final int BG = Color.rgb(16, 18, 22);
+    private static final int CARD = Color.rgb(24, 27, 33);
     private static final int FG = Color.rgb(222, 228, 236);
     private static final int DIM = Color.rgb(140, 150, 165);
+    private static final int OK = Color.rgb(120, 200, 140);
     private static final int WARN = Color.rgb(235, 130, 120);
 
     private TextView status;
     private Button grantButton;
     private Button startButton;
     private Button stopButton;
-    private Button gameButton;
+    private TextView targetsHeading;
+    private LinearLayout targetList;
+
+    /** One same-uid package, with everything a row needs to render. */
+    private static final class Target {
+        String packageName;
+        CharSequence label;
+        String processName;
+        boolean sameProcess;
+        Intent launch;
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,10 +102,10 @@ public final class LauncherActivity extends Activity {
         root.addView(title);
 
         TextView blurb = new TextView(this);
-        blurb.setText("Scans the process it lives in. This APK and Dungeon Tap "
-                + "declare the same sharedUserId and the same android:process, "
-                + "so Android puts them in one process - which is why no root "
-                + "is needed and why nothing else on the device is visible.");
+        blurb.setText("Scans the process it lives in. Any app declaring the same "
+                + "sharedUserId and the same android:process gets put in that "
+                + "process by Android - which is why no root is needed, and why "
+                + "nothing else on the device is visible.");
         blurb.setTextColor(DIM);
         blurb.setTextSize(13f);
         blurb.setPadding(0, dp(8), 0, dp(16));
@@ -99,7 +116,7 @@ public final class LauncherActivity extends Activity {
         status.setTextSize(12f);
         status.setLineSpacing(dp(2), 1f);
         status.setPadding(dp(12), dp(12), dp(12), dp(12));
-        status.setBackgroundColor(Color.rgb(24, 27, 33));
+        status.setBackgroundColor(CARD);
         root.addView(status);
 
         grantButton = addButton(root, "Grant overlay permission", v -> requestOverlay());
@@ -109,15 +126,25 @@ public final class LauncherActivity extends Activity {
             // onDestroy clears the flag; give it a moment before re-reading.
             status.postDelayed(this::renderStatus, 300);
         });
-        gameButton = addButton(root, "Open Dungeon Tap", v -> openGame());
+
+        targetsHeading = new TextView(this);
+        targetsHeading.setTextColor(DIM);
+        targetsHeading.setTextSize(11f);
+        targetsHeading.setAllCaps(true);
+        targetsHeading.setPadding(0, dp(24), 0, dp(10));
+        root.addView(targetsHeading);
+
+        targetList = new LinearLayout(this);
+        targetList.setOrientation(LinearLayout.VERTICAL);
+        root.addView(targetList);
 
         TextView hint = new TextView(this);
         hint.setText("Tap the CE bubble to open the panel. It stays on screen "
-                + "over the game. Force-stopping either app kills the shared "
-                + "process and the scan with it.");
+                + "over the target. Force-stopping any app in the shared process "
+                + "kills the process, and the scan with it.");
         hint.setTextColor(DIM);
         hint.setTextSize(12f);
-        hint.setPadding(0, dp(16), 0, 0);
+        hint.setPadding(0, dp(20), 0, 0);
         root.addView(hint);
 
         setContentView(scroll);
@@ -127,53 +154,208 @@ public final class LauncherActivity extends Activity {
     protected void onResume() {
         super.onResume();
         // canDrawOverlays is known to lag right after the Settings toggle on
-        // some ROMs, so this is re-read every time the screen comes back rather
-        // than cached.
+        // some ROMs, so it is re-read every time the screen comes back rather
+        // than cached. The target list is rebuilt for the same reason: an app
+        // can be installed or removed while this screen sits in the background.
         renderStatus();
+    }
+
+    // -- targets -------------------------------------------------------------
+
+    /**
+     * Every other package sharing this app's uid.
+     *
+     * <p>{@code getPackagesForUid} on your own uid needs no permission and is
+     * not subject to package-visibility filtering - packages sharing a uid are
+     * always visible to one another. That is why this app declares no
+     * {@code <queries>} entry and no {@code QUERY_ALL_PACKAGES}.
+     */
+    private List<Target> findTargets() {
+        PackageManager pm = getPackageManager();
+        List<Target> out = new ArrayList<>();
+        String[] packages = pm.getPackagesForUid(Process.myUid());
+        if (packages == null) {
+            return out;
+        }
+        String self = getPackageName();
+        String ourProcess = getApplicationInfo().processName;
+
+        for (String name : packages) {
+            if (self.equals(name)) {
+                continue;
+            }
+            Target t = new Target();
+            t.packageName = name;
+            try {
+                ApplicationInfo info = pm.getApplicationInfo(name, 0);
+                t.label = pm.getApplicationLabel(info);
+                t.processName = info.processName;
+            } catch (PackageManager.NameNotFoundException e) {
+                // Shares our uid but cannot be read. List it anyway rather than
+                // pretending it is not there.
+                t.label = name;
+                t.processName = null;
+            }
+            t.sameProcess = ourProcess != null && ourProcess.equals(t.processName);
+            t.launch = pm.getLaunchIntentForPackage(name);
+            out.add(t);
+        }
+
+        // Scannable ones first, then alphabetical. The list is a menu of what
+        // can actually be inspected, so those belong at the top.
+        Collections.sort(out, new Comparator<Target>() {
+            @Override
+            public int compare(Target a, Target b) {
+                if (a.sameProcess != b.sameProcess) {
+                    return a.sameProcess ? -1 : 1;
+                }
+                return a.label.toString().compareToIgnoreCase(b.label.toString());
+            }
+        });
+        return out;
+    }
+
+    private void renderTargets(List<Target> targets) {
+        targetList.removeAllViews();
+
+        if (targets.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText("No other app shares this uid.\n\n"
+                    + "A target must declare, in its own manifest:\n\n"
+                    + "    android:sharedUserId=\"" + sharedUserIdGuess() + "\"\n"
+                    + "    android:process=\"" + getApplicationInfo().processName + "\"\n\n"
+                    + "and be signed with the same certificate. A package's uid is "
+                    + "fixed when it is installed, so adding sharedUserId to an "
+                    + "already-installed app does nothing - uninstall both and "
+                    + "install again.");
+            empty.setTextColor(WARN);
+            empty.setTextSize(12f);
+            empty.setPadding(dp(12), dp(12), dp(12), dp(12));
+            empty.setBackgroundColor(CARD);
+            targetList.addView(empty);
+            return;
+        }
+
+        for (Target t : targets) {
+            targetList.addView(buildTargetRow(t));
+        }
+    }
+
+    private View buildTargetRow(final Target t) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(dp(14), dp(12), dp(14), dp(12));
+
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(CARD);
+        bg.setCornerRadius(dp(8));
+        bg.setStroke(dp(1), t.sameProcess ? OK : Color.rgb(70, 52, 30));
+        row.setBackground(bg);
+
+        TextView label = new TextView(this);
+        label.setText(t.label);
+        label.setTextColor(t.sameProcess ? FG : DIM);
+        label.setTextSize(16f);
+        label.setTypeface(null, Typeface.BOLD);
+        row.addView(label);
+
+        TextView pkg = new TextView(this);
+        pkg.setText(t.packageName);
+        pkg.setTypeface(Typeface.MONOSPACE);
+        pkg.setTextSize(11f);
+        pkg.setTextColor(DIM);
+        row.addView(pkg);
+
+        TextView state = new TextView(this);
+        state.setTypeface(Typeface.MONOSPACE);
+        state.setTextSize(11f);
+        state.setPadding(0, dp(6), 0, 0);
+        if (t.sameProcess) {
+            state.setText("● 同一行程 · 可掃描");
+            state.setTextColor(OK);
+        } else {
+            state.setText("○ 同 uid，但 process = " + t.processName
+                    + "\n   不同行程 · 從這裡掃不到");
+            state.setTextColor(WARN);
+        }
+        row.addView(state);
+
+        if (t.launch != null) {
+            row.setOnClickListener(v -> startActivity(t.launch));
+            row.setClickable(true);
+            row.setFocusable(true);
+        } else {
+            // A service- or library-only package has no launcher entry. It can
+            // still be in the shared process, so it belongs in the list - it
+            // just cannot be started from here.
+            TextView note = new TextView(this);
+            note.setText("沒有啟動器入口，無法從這裡開啟");
+            note.setTextColor(DIM);
+            note.setTextSize(11f);
+            note.setPadding(0, dp(4), 0, 0);
+            row.addView(note);
+        }
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.bottomMargin = dp(8);
+        row.setLayoutParams(params);
+        return row;
+    }
+
+    /**
+     * {@code ApplicationInfo} exposes no accessor for the shared user id, so
+     * this derives it from the process name, which this project always builds
+     * as {@code <sharedUserId>.proc}. Used only as guidance in the empty state.
+     */
+    private String sharedUserIdGuess() {
+        String process = getApplicationInfo().processName;
+        if (process == null) {
+            return "(unknown)";
+        }
+        return process.endsWith(".proc")
+                ? process.substring(0, process.length() - ".proc".length())
+                : process;
     }
 
     // -- status --------------------------------------------------------------
 
     private void renderStatus() {
         boolean canOverlay = Settings.canDrawOverlays(this);
-        StringBuilder text = new StringBuilder();
-        text.append("package  ").append(getPackageName()).append('\n');
-        text.append("pid      ").append(Process.myPid()).append('\n');
-        text.append("uid      ").append(Process.myUid()).append('\n');
-        text.append("engine   ")
-                .append(NativeBridge.AVAILABLE ? NativeBridge.nativeVersionLine() : "UNAVAILABLE")
-                .append('\n');
-        text.append("overlay  ").append(canOverlay ? "granted" : "NOT GRANTED").append('\n');
-        text.append("service  ").append(EngineService.running ? "running" : "stopped").append('\n');
+        List<Target> targets = findTargets();
 
-        boolean gameShared = false;
-        boolean gameInstalled = false;
-        try {
-            ApplicationInfo info = getPackageManager().getApplicationInfo(GAME, 0);
-            gameInstalled = true;
-            gameShared = info.uid == Process.myUid();
-            text.append("game     ").append(gameShared
-                    ? "same uid " + info.uid + " - shared process OK"
-                    : "uid " + info.uid + " != " + Process.myUid() + " - NOT SHARED");
-        } catch (PackageManager.NameNotFoundException e) {
-            text.append("game     not installed");
+        int scannable = 0;
+        for (Target t : targets) {
+            if (t.sameProcess) {
+                scannable++;
+            }
         }
+        int strays = targets.size() - scannable;
 
-        status.setText(text.toString());
-        boolean healthy = NativeBridge.AVAILABLE && canOverlay && (!gameInstalled || gameShared);
-        status.setTextColor(healthy ? FG : WARN);
+        String text = "package  " + getPackageName() + '\n'
+                + "pid      " + Process.myPid() + '\n'
+                + "uid      " + Process.myUid() + '\n'
+                + "process  " + getApplicationInfo().processName + '\n'
+                + "engine   " + (NativeBridge.AVAILABLE
+                        ? NativeBridge.nativeVersionLine() : "UNAVAILABLE") + '\n'
+                + "overlay  " + (canOverlay ? "granted" : "NOT GRANTED") + '\n'
+                + "service  " + (EngineService.running ? "running" : "stopped") + '\n'
+                + "targets  " + scannable + " scannable"
+                + (strays > 0 ? "  (" + strays + " same uid, other process)" : "");
+        status.setText(text);
+        status.setTextColor(
+                NativeBridge.AVAILABLE && canOverlay && scannable > 0 ? FG : WARN);
 
         grantButton.setEnabled(!canOverlay);
         grantButton.setText(canOverlay ? "Overlay permission granted" : "Grant overlay permission");
         startButton.setEnabled(canOverlay && NativeBridge.AVAILABLE && !EngineService.running);
         stopButton.setEnabled(EngineService.running);
-        gameButton.setEnabled(gameInstalled);
 
-        if (gameInstalled && !gameShared) {
-            status.append("\n\nUninstall BOTH apps and reinstall. A package's uid is "
-                    + "fixed at install time, so adding sharedUserId to an "
-                    + "already-installed package does nothing.");
-        }
+        targetsHeading.setText(targets.isEmpty()
+                ? "同一個 uid 的 App"
+                : "同一個 uid 的 App — 點一下啟動");
+        renderTargets(targets);
     }
 
     // -- actions -------------------------------------------------------------
@@ -195,15 +377,6 @@ public final class LauncherActivity extends Activity {
         EngineService.start(this);
         // Give onCreate a moment before the status block reads `running`.
         status.postDelayed(this::renderStatus, 300);
-    }
-
-    private void openGame() {
-        Intent intent = getPackageManager().getLaunchIntentForPackage(GAME);
-        if (intent == null) {
-            Toast.makeText(this, "Dungeon Tap is not installed", Toast.LENGTH_LONG).show();
-            return;
-        }
-        startActivity(intent);
     }
 
     // -- widgets -------------------------------------------------------------
