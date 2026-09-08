@@ -1,0 +1,12 @@
+.gradle/
+build/
+local.properties
+overlay/src/main/jniLibs/
+
+# 簽章：金鑰與密碼絕不進版控
+signing.properties
+*.jks
+*.keystore
+
+# pack.sh 的產物
+dist/

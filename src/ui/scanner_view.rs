@@ -9,39 +9,18 @@ use ratatui::widgets::{Block, Borders, Gauge, List, ListItem, Paragraph};
 
 use crate::scan::scanner::{ScanProgress, Scanner};
 use crate::scan::value_type::{ScanType, ValueType};
-use super::app::InputMode;
+use super::app::{AUTO_SCAN_INTERVAL, InputMode};
 
 pub struct ScannerView {
     pub value_input: String,
     pub editing_value: bool,
     pub result_selected: usize,
     pub result_scroll: usize,
+    /// Re-run the current scan every `AUTO_SCAN_INTERVAL`. Pairs with the
+    /// Unchanged scan mode to repeatedly drop anything that moved.
+    pub auto_scan: bool,
     value_type_index: usize,
     scan_type_index: usize,
-}
-
-const SCAN_TYPES: &[ScanType] = &[
-    ScanType::ExactValue,
-    ScanType::UnknownInitial,
-    ScanType::Increased,
-    ScanType::Decreased,
-    ScanType::Changed,
-    ScanType::Unchanged,
-    ScanType::GreaterThan,
-    ScanType::LessThan,
-];
-
-fn scan_type_label(st: ScanType) -> &'static str {
-    match st {
-        ScanType::ExactValue => "Exact Value",
-        ScanType::UnknownInitial => "Unknown Initial",
-        ScanType::Increased => "Increased",
-        ScanType::Decreased => "Decreased",
-        ScanType::Changed => "Changed",
-        ScanType::Unchanged => "Unchanged",
-        ScanType::GreaterThan => "Greater Than",
-        ScanType::LessThan => "Less Than",
-    }
 }
 
 impl ScannerView {
@@ -51,6 +30,7 @@ impl ScannerView {
             editing_value: false,
             result_selected: 0,
             result_scroll: 0,
+            auto_scan: false,
             value_type_index: 2, // default U32
             scan_type_index: 0,
         }
@@ -61,7 +41,7 @@ impl ScannerView {
     }
 
     pub fn scan_type(&self) -> ScanType {
-        SCAN_TYPES[self.scan_type_index]
+        ScanType::ALL[self.scan_type_index]
     }
 
     pub fn cycle_value_type(&mut self) {
@@ -69,7 +49,49 @@ impl ScannerView {
     }
 
     pub fn cycle_scan_type(&mut self) {
-        self.scan_type_index = (self.scan_type_index + 1) % SCAN_TYPES.len();
+        self.scan_type_index = (self.scan_type_index + 1) % ScanType::ALL.len();
+    }
+
+    /// Vertical split of the scanner pane: two fixed control rows, then
+    /// results. Shared by `draw` and `ensure_visible` so the two cannot drift
+    /// apart. The controls are stacked rather than side by side because the
+    /// pane is only half the terminal wide.
+    fn layout(area: Rect) -> std::rc::Rc<[Rect]> {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(3), Constraint::Length(3), Constraint::Min(3)])
+            .split(area)
+    }
+
+    /// Number of result rows that fit in the pane (inside the borders).
+    fn visible_rows(area: Rect) -> usize {
+        (Self::layout(area)[2].height as usize).saturating_sub(2)
+    }
+
+    /// Scroll the results window so the selected row stays on screen. Called
+    /// from the draw path, which is the only place the pane height is known.
+    /// Only the scroll offset is touched - the selection belongs to the key
+    /// handlers.
+    pub fn ensure_visible(&mut self, area: Rect, total: usize) {
+        let rows = Self::visible_rows(area);
+        if total == 0 || rows == 0 {
+            self.result_scroll = 0;
+            return;
+        }
+        // Keep the last page full when the result set shrinks, otherwise the
+        // pane renders half empty with rows still available above.
+        self.result_scroll = self.result_scroll.min(total.saturating_sub(rows));
+        if self.result_selected >= total {
+            // Stale index - leave it to the key handlers rather than scrolling
+            // to a row that is not there.
+            return;
+        }
+        if self.result_selected < self.result_scroll {
+            self.result_scroll = self.result_selected;
+        }
+        if self.result_selected >= self.result_scroll + rows {
+            self.result_scroll = self.result_selected - rows + 1;
+        }
     }
 
     pub fn draw(
@@ -90,19 +112,13 @@ impl ScannerView {
             Style::default().fg(Color::DarkGray)
         };
 
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Length(3), Constraint::Min(3)])
-            .split(area);
+        let chunks = Self::layout(area);
 
-        // Controls
+        // Row 1: value type + scan mode. "2 Bytes (u16)" needs 13 columns and
+        // "Unknown Initial" needs 15, plus borders.
         let controls_chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Length(20),
-                Constraint::Length(20),
-                Constraint::Min(20),
-            ])
+            .constraints([Constraint::Length(16), Constraint::Min(18)])
             .split(chunks[0]);
 
         let type_label = self.value_type().label();
@@ -110,7 +126,7 @@ impl ScannerView {
             .block(Block::default().borders(Borders::ALL).title(" [t]ype ").border_style(border_style));
         frame.render_widget(type_widget, controls_chunks[0]);
 
-        let scan_label = scan_type_label(self.scan_type());
+        let scan_label = self.scan_type().label();
         let scan_widget = Paragraph::new(format!(" {scan_label}"))
             .block(Block::default().borders(Borders::ALL).title(" [s]can mode ").border_style(border_style));
         frame.render_widget(scan_widget, controls_chunks[1]);
@@ -127,6 +143,7 @@ impl ScannerView {
             Line::from(Span::styled(format!(" {}", self.value_input), Style::default()))
         };
 
+        // Row 2: the search value gets the full pane width.
         let value_widget = Paragraph::new(value_content)
             .block(
                 Block::default()
@@ -138,13 +155,13 @@ impl ScannerView {
                         border_style
                     }),
             );
-        frame.render_widget(value_widget, controls_chunks[2]);
+        frame.render_widget(value_widget, chunks[1]);
 
         // Results area - show scanning animation or results
         if scanning {
-            self.draw_scanning_animation(frame, chunks[1], border_style, spinner, elapsed, progress);
+            self.draw_scanning_animation(frame, chunks[2], border_style, spinner, elapsed, progress);
         } else {
-            self.draw_results(frame, chunks[1], scanner, border_style);
+            self.draw_results(frame, chunks[2], scanner, border_style);
         }
     }
 
@@ -157,16 +174,6 @@ impl ScannerView {
         elapsed: &str,
         progress: Option<&Arc<ScanProgress>>,
     ) {
-        let inner_chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Fill(1),
-                Constraint::Length(3),
-                Constraint::Length(1),
-                Constraint::Fill(1),
-            ])
-            .split(area);
-
         let block = Block::default()
             .borders(Borders::ALL)
             .title(" Scanning... ")
@@ -257,23 +264,108 @@ impl ScannerView {
                     Style::default()
                 };
                 ListItem::new(Line::from(vec![
-                    Span::styled(format!("0x{:016X}  ", r.address), Style::default().fg(Color::Yellow)),
+                    Span::styled(format!("0x{:X}  ", r.address), Style::default().fg(Color::Yellow)),
                     Span::styled(r.value.display_value(), Style::default().fg(Color::White)),
                 ]))
                 .style(style)
             })
             .collect();
 
-        let title = format!(
-            " Results: {} | [a]dd to table | [r]eset ",
-            scanner.result_count()
-        );
+        let position = if results.len() > max_display && !results.is_empty() {
+            format!(" ↕{}/{}", self.result_selected + 1, results.len())
+        } else {
+            String::new()
+        };
+        // Kept short - the pane is only half the terminal wide and an
+        // over-long block title is clipped, not wrapped. Key hints live in the
+        // status bar instead.
+        let mut title = vec![Span::raw(format!(
+            " Results: {}{} ",
+            scanner.result_count(),
+            position
+        ))];
+        if self.auto_scan {
+            title.push(Span::styled(
+                format!("[AUTO {}ms] ", AUTO_SCAN_INTERVAL.as_millis()),
+                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+            ));
+        }
+
         let list = List::new(items).block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(title)
+                .title(Line::from(title))
                 .border_style(border_style),
         );
         frame.render_widget(list, area);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 12 rows total: 6 for the two control rows, leaving 6 for the results
+    /// block, minus 2 borders = 4 visible result rows.
+    fn pane() -> Rect {
+        Rect::new(0, 0, 80, 12)
+    }
+
+    #[test]
+    fn test_visible_rows() {
+        assert_eq!(ScannerView::visible_rows(pane()), 4);
+    }
+
+    #[test]
+    fn test_scroll_follows_cursor_down() {
+        let mut view = ScannerView::new();
+
+        // Still on the first page - no scrolling yet.
+        view.result_selected = 3;
+        view.ensure_visible(pane(), 100);
+        assert_eq!(view.result_scroll, 0);
+
+        // One past the last visible row - the window advances by one.
+        view.result_selected = 4;
+        view.ensure_visible(pane(), 100);
+        assert_eq!(view.result_scroll, 1);
+
+        view.result_selected = 50;
+        view.ensure_visible(pane(), 100);
+        assert_eq!(view.result_scroll, 47);
+    }
+
+    #[test]
+    fn test_scroll_follows_cursor_up() {
+        let mut view = ScannerView::new();
+        view.result_selected = 50;
+        view.ensure_visible(pane(), 100);
+        assert_eq!(view.result_scroll, 47);
+
+        view.result_selected = 46;
+        view.ensure_visible(pane(), 100);
+        assert_eq!(view.result_scroll, 46);
+
+        view.result_selected = 0;
+        view.ensure_visible(pane(), 100);
+        assert_eq!(view.result_scroll, 0);
+    }
+
+    #[test]
+    fn test_scroll_reset_when_empty() {
+        let mut view = ScannerView::new();
+        view.result_scroll = 30;
+        view.ensure_visible(pane(), 0);
+        assert_eq!(view.result_scroll, 0);
+    }
+
+    #[test]
+    fn test_ensure_visible_does_not_move_selection() {
+        let mut view = ScannerView::new();
+        view.result_selected = 90;
+        // Stale selection after the result set shrank - drawing must not
+        // silently reposition the cursor.
+        view.ensure_visible(pane(), 5);
+        assert_eq!(view.result_selected, 90);
     }
 }

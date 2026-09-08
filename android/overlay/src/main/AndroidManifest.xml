@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    No permissions. In particular no SYSTEM_ALERT_WINDOW: the overlay attaches
+    to the host Activity's own window token, so it needs nothing granted. A
+    permission declared here would be merged into the host app's manifest,
+    which is the last thing a drop-in debug library should do.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!--
+            Installs the overlay before Application.onCreate() runs, so a host
+            app only has to add the Gradle dependency - there is no call site
+            to add, which is what lets `debugImplementation` alone keep this
+            out of release builds entirely.
+        -->
+        <provider
+            android:name="dev.marc.ce.overlay.OverlayInstallProvider"
+            android:authorities="${applicationId}.ceoverlay"
+            android:exported="false"
+            android:initOrder="100" />
+    </application>
+
+</manifest>

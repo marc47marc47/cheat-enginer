@@ -149,7 +149,6 @@ fn truncate_str(s: &str, max_width: usize) -> String {
     }
     let mut width = 0;
     let mut result = String::new();
-    let mut chars = s.chars().peekable();
     let ellipsis_width = 3; // "..."
 
     // First check if the full string fits

@@ -39,6 +39,22 @@ impl ValueType {
         }
     }
 
+    /// Compact form for table rows, where `label()` is too wide to fit.
+    pub fn short_label(&self) -> &'static str {
+        match self {
+            Self::U8 => "U8",
+            Self::U16 => "U16",
+            Self::U32 => "U32",
+            Self::U64 => "U64",
+            Self::I8 => "I8",
+            Self::I16 => "I16",
+            Self::I32 => "I32",
+            Self::I64 => "I64",
+            Self::F32 => "F32",
+            Self::F64 => "F64",
+        }
+    }
+
     pub const ALL: &[ValueType] = &[
         Self::U8,
         Self::U16,
@@ -51,6 +67,16 @@ impl ValueType {
         Self::F32,
         Self::F64,
     ];
+
+    /// Position in [`Self::ALL`]. The Android bridge sends this index across
+    /// JNI, so the order of `ALL` is part of that ABI.
+    pub fn index(self) -> usize {
+        Self::ALL.iter().position(|v| *v == self).unwrap_or(0)
+    }
+
+    pub fn from_index(index: usize) -> Option<Self> {
+        Self::ALL.get(index).copied()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -101,21 +127,6 @@ impl ScanValue {
         }
     }
 
-    pub fn value_type(&self) -> ValueType {
-        match self {
-            Self::U8(_) => ValueType::U8,
-            Self::U16(_) => ValueType::U16,
-            Self::U32(_) => ValueType::U32,
-            Self::U64(_) => ValueType::U64,
-            Self::I8(_) => ValueType::I8,
-            Self::I16(_) => ValueType::I16,
-            Self::I32(_) => ValueType::I32,
-            Self::I64(_) => ValueType::I64,
-            Self::F32(_) => ValueType::F32,
-            Self::F64(_) => ValueType::F64,
-        }
-    }
-
     pub fn parse(s: &str, value_type: ValueType) -> Option<Self> {
         Some(match value_type {
             ValueType::U8 => Self::U8(s.parse().ok()?),
@@ -163,6 +174,60 @@ pub enum ScanType {
     Unchanged,
     GreaterThan,
     LessThan,
+}
+
+impl ScanType {
+    /// Every scan mode, in the order both front-ends present them. The Android
+    /// bridge passes this index across JNI, so the order is part of the ABI.
+    pub const ALL: &'static [ScanType] = &[
+        ScanType::ExactValue,
+        ScanType::UnknownInitial,
+        ScanType::Increased,
+        ScanType::Decreased,
+        ScanType::Changed,
+        ScanType::Unchanged,
+        ScanType::GreaterThan,
+        ScanType::LessThan,
+    ];
+
+    /// Position in [`Self::ALL`], the index the Android bridge sends.
+    pub fn index(self) -> usize {
+        Self::ALL.iter().position(|v| *v == self).unwrap_or(0)
+    }
+
+    pub fn from_index(index: usize) -> Option<Self> {
+        Self::ALL.get(index).copied()
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::ExactValue => "Exact Value",
+            Self::UnknownInitial => "Unknown Initial",
+            Self::Increased => "Increased",
+            Self::Decreased => "Decreased",
+            Self::Changed => "Changed",
+            Self::Unchanged => "Unchanged",
+            Self::GreaterThan => "Greater Than",
+            Self::LessThan => "Less Than",
+        }
+    }
+
+    /// True when the mode compares against a value the user typed, rather than
+    /// against the previous pass. Both front-ends use this to decide whether
+    /// the value field is required.
+    pub fn needs_target(self) -> bool {
+        matches!(self, Self::ExactValue | Self::GreaterThan | Self::LessThan)
+    }
+
+    /// True for the modes that compare against the value seen on the previous
+    /// pass. A first scan has no previous value, so these capture a snapshot
+    /// instead of producing results - see `Scanner::first_scan`.
+    pub fn needs_previous(self) -> bool {
+        matches!(
+            self,
+            Self::Increased | Self::Decreased | Self::Changed | Self::Unchanged
+        )
+    }
 }
 
 impl ScanValue {

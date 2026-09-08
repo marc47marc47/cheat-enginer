@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The only thing this game does for the sake of the scanner is declare the same
+  sharedUserId and the same process name. No permission, no dependency, no
+  native library, no source file that mentions the engine.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:sharedUserId="dev.marc.ce.shared"
+    tools:ignore="Deprecated">
+
+    <application
+        android:allowBackup="false"
+        android:label="Dungeon Tap"
+        android:process="dev.marc.ce.shared.proc"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.Material.NoActionBar">
+
+        <activity
+            android:name=".GameActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ShopActivity"
+            android:exported="false" />
+
+    </application>
+
+</manifest>

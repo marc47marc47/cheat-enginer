@@ -1,4 +1,4 @@
-pub use crate::platform::{ProcessHandle, ProcessInfo};
+pub use crate::platform::ProcessInfo;
 
 /// Filter processes: name or window title must contain ALL query characters (any order, any position, case-insensitive)
 pub fn filter_processes(processes: &[ProcessInfo], query: &str) -> Vec<ProcessInfo> {

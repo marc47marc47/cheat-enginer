@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Two attributes and a matching signature are the whole contract that puts this
+  APK and dev.marc.ce.game in one OS process:
+
+    android:sharedUserId  on <manifest>    - one UID for both packages
+    android:process       on <application> - one process for both packages
+
+  The process name must NOT start with ':' (that form is private to its own
+  package and can never be shared) and must contain a '.'.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:sharedUserId="dev.marc.ce.shared"
+    tools:ignore="Deprecated">
+
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- API 30+ package visibility, so getLaunchIntentForPackage can see it. -->
+    <queries>
+        <package android:name="dev.marc.ce.game" />
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:label="Cheat Engine"
+        android:process="dev.marc.ce.shared.proc"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.Material.NoActionBar">
+
+        <activity
+            android:name=".LauncherActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          specialUse is the only type that is not a lie about what this does.
+          On API 34+ the type passed to startForeground must match this
+          declaration, and specialUse additionally requires the <property>
+          subtype below or the service refuses to start.
+        -->
+        <service
+            android:name=".EngineService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="On-device memory inspector for a locally installed debug target sharing this process" />
+        </service>
+
+        <!--
+          Load-bearing removal, not tidiness.
+
+          The AAR's provider exists to install the overlay into an arbitrary
+          host app before its Application.onCreate. Here it would (a) put a
+          second bubble over this app's own launcher, and (b) fire unreliably:
+          in a shared process only the package that created the process gets its
+          providers installed at bind time, so if the game starts the process
+          first this would not run at all. Everything is driven from
+          EngineService instead.
+        -->
+        <provider
+            android:name="dev.marc.ce.overlay.OverlayInstallProvider"
+            tools:node="remove" />
+
+    </application>
+
+</manifest>

@@ -1,11 +1,3 @@
-mod address;
-mod error;
-mod memory;
-mod platform;
-mod process;
-mod scan;
-mod ui;
-
 use std::io;
 use std::time::Duration;
 
@@ -17,9 +9,18 @@ use crossterm::terminal::{
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 
-use ui::app::App;
+use ce_engine::VERSION_LINE;
+use ce_engine::ui::app::App;
 
 fn main() -> anyhow::Result<()> {
+    if std::env::args()
+        .skip(1)
+        .any(|a| a == "--version" || a == "-V")
+    {
+        println!("{VERSION_LINE}");
+        return Ok(());
+    }
+
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -56,8 +57,8 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> anyhow::Res
 
         app.handle_events(tick_rate)?;
 
-        // Update address table values periodically
-        app.update_values();
+        // Re-apply freezes and refresh address table values
+        app.tick();
 
         if app.should_quit {
             break;

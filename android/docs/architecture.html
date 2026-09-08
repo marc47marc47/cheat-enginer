@@ -1,0 +1,1190 @@
+<title>兩支 APK，一個行程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap">
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+
+  :root {
+    /* 冷調中性色：帶一點藍紫偏移，不是預設灰 */
+    --ground:      #EFF1F6;
+    --surface:     #FFFFFF;
+    --surface-2:   #E4E7EF;
+    --ink:         #14171F;
+    --ink-2:       #434A5C;
+    --ink-3:       #6F7789;
+    --line:        #D0D5E1;
+    --line-soft:   #E2E6EF;
+
+    /* 兩個 package 的身分色 */
+    --engine:      #0E6E7E;   /* CE / 掃描器這一側 */
+    --engine-soft: #D6ECEF;
+    --target:      #9A620A;   /* 遊戲 / 目標 App 這一側 */
+    --target-soft: #F6E7CA;
+    --write:       #B8392C;   /* 寫入與凍結 */
+    --write-soft:  #F8DEDA;
+
+    --diagram-bg:  #F8FAFD;
+    --code-bg:     #EAEDF4;
+
+    --measure: 34rem;
+    --wide: 62rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+      --ground:      #0D0F15;
+      --surface:     #161A22;
+      --surface-2:   #1D222C;
+      --ink:         #E9EBF1;
+      --ink-2:       #A9B1C3;
+      --ink-3:       #798194;
+      --line:        #2A303D;
+      --line-soft:   #222833;
+      --engine:      #63D2E0;
+      --engine-soft: #10353D;
+      --target:      #E5AE59;
+      --target-soft: #382A11;
+      --write:       #F07A6C;
+      --write-soft:  #3A1D19;
+      --diagram-bg:  #11141B;
+      --code-bg:     #1A1F29;
+    }
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0D0F15;
+      --surface:     #161A22;
+      --surface-2:   #1D222C;
+      --ink:         #E9EBF1;
+      --ink-2:       #A9B1C3;
+      --ink-3:       #798194;
+      --line:        #2A303D;
+      --line-soft:   #222833;
+      --engine:      #63D2E0;
+      --engine-soft: #10353D;
+      --target:      #E5AE59;
+      --target-soft: #382A11;
+      --write:       #F07A6C;
+      --write-soft:  #3A1D19;
+      --diagram-bg:  #11141B;
+      --code-bg:     #1A1F29;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #0D0F15;
+    --surface:     #161A22;
+    --surface-2:   #1D222C;
+    --ink:         #E9EBF1;
+    --ink-2:       #A9B1C3;
+    --ink-3:       #798194;
+    --line:        #2A303D;
+    --line-soft:   #222833;
+    --engine:      #63D2E0;
+    --engine-soft: #10353D;
+    --target:      #E5AE59;
+    --target-soft: #382A11;
+    --write:       #F07A6C;
+    --write-soft:  #3A1D19;
+    --diagram-bg:  #11141B;
+    --code-bg:     #1A1F29;
+  }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Noto Sans TC", -apple-system, "Segoe UI", system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  code, .mono { font-family: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace; }
+
+  /* ---------- 版面骨架 ---------- */
+
+  .page { max-width: var(--wide); margin: 0 auto; padding: 0 1.5rem 6rem; }
+  .prose { max-width: var(--measure); }
+
+  header.masthead {
+    border-bottom: 1px solid var(--line);
+    padding: 3.5rem 0 2.25rem;
+    margin-bottom: 3rem;
+  }
+  .eyebrow {
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 500;
+    margin: 0 0 1rem;
+  }
+  h1 {
+    font-family: "Noto Serif TC", Georgia, serif;
+    font-weight: 700;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    margin: 0 0 1.25rem;
+    text-wrap: balance;
+  }
+  .standfirst {
+    font-size: 1.08rem;
+    color: var(--ink-2);
+    max-width: var(--measure);
+    margin: 0 0 2rem;
+  }
+
+  .meta-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 2rem;
+    font-size: 0.78rem;
+    color: var(--ink-3);
+    border-top: 1px solid var(--line-soft);
+    padding-top: 1rem;
+  }
+  .meta-strip b { color: var(--ink-2); font-weight: 500; }
+
+  h2 {
+    font-family: "Noto Serif TC", Georgia, serif;
+    font-weight: 700;
+    font-size: 1.75rem;
+    letter-spacing: -0.005em;
+    margin: 0 0 0.5rem;
+    text-wrap: balance;
+  }
+  h3 {
+    font-size: 1.02rem;
+    font-weight: 700;
+    margin: 2.5rem 0 0.5rem;
+    color: var(--ink);
+  }
+  section { margin-bottom: 4.5rem; }
+  .sec-head { display: flex; align-items: baseline; gap: 0.9rem; margin-bottom: 1.5rem; }
+  .sec-num {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.78rem;
+    color: var(--engine);
+    font-weight: 500;
+    padding-top: 0.35rem;
+    flex: none;
+  }
+  p { margin: 0 0 1.1rem; }
+  .prose p:last-child { margin-bottom: 0; }
+
+  a { color: var(--engine); }
+
+  /* ---------- 圖表容器 ---------- */
+
+  figure {
+    margin: 2rem 0 1.25rem;
+    background: var(--diagram-bg);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .fig-scroll { overflow-x: auto; padding: 1.25rem; }
+  figure svg { display: block; min-width: 720px; width: 100%; height: auto; }
+  figcaption {
+    border-top: 1px solid var(--line-soft);
+    padding: 0.75rem 1.25rem 0.9rem;
+    font-size: 0.8rem;
+    color: var(--ink-3);
+    line-height: 1.65;
+  }
+  figcaption b { color: var(--ink-2); font-weight: 500; }
+
+  /* ---------- 行內元件 ---------- */
+
+  .callout {
+    border-left: 3px solid var(--engine);
+    background: var(--surface);
+    padding: 1.1rem 1.35rem;
+    margin: 1.75rem 0;
+    max-width: var(--measure);
+    font-size: 0.95rem;
+  }
+  .callout.warn { border-left-color: var(--write); }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .lbl {
+    display: block;
+    font-size: 0.68rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 0.4rem;
+  }
+
+  .chip {
+    display: inline-block;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.78em;
+    padding: 0.05em 0.42em;
+    border-radius: 3px;
+    background: var(--code-bg);
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+  .chip.e { background: var(--engine-soft); color: var(--engine); }
+  .chip.t { background: var(--target-soft); color: var(--target); }
+  .chip.w { background: var(--write-soft); color: var(--write); }
+
+  /* API 清單：不是卡片，是有色標的定義列 */
+  .api-group { margin-top: 2rem; }
+  .api-group > h3 { margin-top: 0; display: flex; align-items: center; gap: 0.6rem; }
+  .api-group > h3::before {
+    content: "";
+    width: 10px; height: 10px; border-radius: 2px;
+    background: var(--role, var(--ink-3));
+    flex: none;
+  }
+  dl.api { margin: 0; border-top: 1px solid var(--line); }
+  dl.api > div {
+    display: grid;
+    grid-template-columns: minmax(15rem, 22rem) 1fr;
+    gap: 0 1.75rem;
+    padding: 0.7rem 0;
+    border-bottom: 1px solid var(--line-soft);
+    align-items: start;
+  }
+  dl.api dt {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.8rem;
+    color: var(--ink);
+    line-height: 1.6;
+    word-break: break-word;
+  }
+  dl.api dd { margin: 0; font-size: 0.88rem; color: var(--ink-2); }
+  @media (max-width: 640px) {
+    dl.api > div { grid-template-columns: 1fr; gap: 0.25rem; }
+  }
+
+  /* 對照表 */
+  .table-wrap { overflow-x: auto; margin: 1.75rem 0; }
+  table { border-collapse: collapse; width: 100%; min-width: 34rem; font-size: 0.88rem; }
+  th, td { text-align: left; padding: 0.7rem 1rem 0.7rem 0; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  thead th { border-bottom: 1px solid var(--line); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
+  tbody th { font-weight: 500; color: var(--ink-2); }
+  td.e { color: var(--engine); }
+  td.t { color: var(--target); }
+
+  /* 程式碼路徑 */
+  pre {
+    background: var(--code-bg);
+    border-radius: 8px;
+    padding: 1.1rem 1.25rem;
+    overflow-x: auto;
+    font-size: 0.8rem;
+    line-height: 1.75;
+    margin: 1.5rem 0;
+    color: var(--ink-2);
+  }
+  pre b { color: var(--ink); font-weight: 500; }
+  pre .c { color: var(--ink-3); }
+  pre .k { color: var(--engine); }
+  pre .r { color: var(--write); }
+
+  ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 1.5rem 0; max-width: var(--measure); }
+  ol.steps li {
+    counter-increment: s;
+    position: relative;
+    padding-left: 2.4rem;
+    margin-bottom: 0.85rem;
+    font-size: 0.95rem;
+  }
+  ol.steps li::before {
+    content: counter(s);
+    position: absolute; left: 0; top: 0.15rem;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.72rem;
+    color: var(--engine);
+    border: 1px solid var(--engine);
+    border-radius: 50%;
+    width: 1.5rem; height: 1.5rem;
+    display: grid; place-items: center;
+    line-height: 1;
+  }
+
+  ul.plain { list-style: none; padding: 0; margin: 1.25rem 0; max-width: var(--measure); }
+  ul.plain li { position: relative; padding-left: 1.15rem; margin-bottom: 0.6rem; font-size: 0.95rem; }
+  ul.plain li::before {
+    content: ""; position: absolute; left: 0; top: 0.72em;
+    width: 5px; height: 5px; border-radius: 50%; background: var(--ink-3);
+  }
+
+  /* 動畫開關 */
+  .anim-toggle {
+    font: inherit;
+    font-size: 0.75rem;
+    font-family: "JetBrains Mono", monospace;
+    background: var(--surface);
+    color: var(--ink-2);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.3rem 0.9rem;
+    cursor: pointer;
+  }
+  .anim-toggle:hover { border-color: var(--engine); color: var(--engine); }
+  .anim-toggle:focus-visible { outline: 2px solid var(--engine); outline-offset: 2px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 1.25rem; font-size: 0.78rem; color: var(--ink-3); margin: 0 0 0.25rem; }
+  .legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+  footer.colophon {
+    border-top: 1px solid var(--line);
+    padding-top: 1.5rem;
+    font-size: 0.8rem;
+    color: var(--ink-3);
+    max-width: var(--measure);
+  }
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <p class="eyebrow">cheat-enginer for Android · 架構說明</p>
+    <h1>兩支 APK，一個行程</h1>
+    <p class="standfirst">
+      一支獨立安裝的記憶體掃描器，怎麼在<strong>沒有 root</strong> 的情況下讀寫另一支獨立安裝的遊戲的記憶體。
+      答案不是繞過權限，而是讓兩支 APK 從一開始就跑在同一個 OS 行程裡 —— 於是「跨行程」這個問題根本不存在。
+      以下用 SVG + SMIL 動畫說明關聯架構、運作架構、用到的 Android framework，以及它們怎麼連通。
+    </p>
+    <div class="meta-strip">
+      <span><b>驗證環境</b> Android 15 / API 35 模擬器 · x86_64</span>
+      <span><b>引擎</b> Rust · <span class="mono">ce_engine</span> v0.2.0</span>
+      <span><b>UI</b> 純 framework Views · 零 AndroidX / Kotlin / XML</span>
+      <span style="margin-left:auto"><button class="anim-toggle" id="animToggle" type="button">⏸ 暫停動畫</button></span>
+    </div>
+  </header>
+
+  <!-- ===================================================== 0. 核心前提 -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">00</span>
+      <h2>為什麼不需要 root</h2>
+    </div>
+    <div class="prose">
+      <p>
+        整份架構壓在三句話上，順序不能顛倒：
+      </p>
+      <ol class="steps">
+        <li>讀<strong>自己</strong>的記憶體只要開 <span class="chip">/proc/self/mem</span> —— 不需要任何權限，也沒有 SELinux 規則擋。</li>
+        <li>讀<strong>別人</strong>的記憶體需要 <span class="chip">ptrace</span> 或 <span class="chip">/proc/&lt;pid&gt;/mem</span>；stock Android 的 SELinux policy 對 <span class="chip">untrusted_app</span> 是 <span class="chip w">neverallow</span>，沒有商量餘地。</li>
+        <li>所以掃描器必須<strong>就在被掃的那個行程裡</strong>。剩下的全部工程，都只是在回答「怎麼進去」。</li>
+      </ol>
+      <p>
+        這個專案有兩種「進去」的方法，共用同一套引擎與同一套 UI，只有<strong>視窗掛在哪裡</strong>不同。
+      </p>
+    </div>
+  </section>
+
+  <!-- ===================================================== 1. 關聯架構 -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">01</span>
+      <h2>關聯架構：從 Rust 到三支 APK</h2>
+    </div>
+    <div class="prose">
+      <p>
+        引擎是一份 Rust crate，同時產出桌面 TUI 執行檔與 Android 用的動態庫。
+        <span class="chip">cargo-ndk</span> 把 <span class="chip">cdylib</span> 交叉編譯成 <span class="chip">libce_engine.so</span>，
+        丟進 <span class="chip">:overlay</span> 這個 AAR；兩支 App 各自用不同的 Gradle configuration 取用它，
+        而遊戲<strong>完全不取用</strong>。
+      </p>
+    </div>
+
+    <p class="legend" style="margin-top:1.5rem">
+      <span><i style="background:var(--engine)"></i> 引擎／掃描器這一側</span>
+      <span><i style="background:var(--target)"></i> 被掃描的目標這一側</span>
+      <span><i style="background:var(--write)"></i> 記憶體寫入與凍結</span>
+    </p>
+
+    <figure>
+      <div class="fig-scroll">
+        <svg viewBox="0 0 980 400" role="img" aria-label="從 Rust crate 經 cargo-ndk 與 overlay AAR 連到三支 APK 的相依關係圖">
+          <g font-family="'Noto Sans TC', sans-serif">
+
+            <!-- 欄標 -->
+            <g font-size="10.5" fill="var(--ink-3)" letter-spacing="1.6" font-family="'JetBrains Mono', monospace">
+              <text x="24" y="26">RUST</text>
+              <text x="268" y="26">BUILD</text>
+              <text x="472" y="26">ANDROID LIBRARY</text>
+              <text x="730" y="26">APK</text>
+            </g>
+
+            <!-- ── Col 1：Rust crate ── -->
+            <rect x="24" y="48" width="210" height="250" rx="10" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="40" y="74" font-size="14" font-weight="700" fill="var(--ink)">Rust crate</text>
+            <text x="40" y="93" font-size="11" fill="var(--ink-3)" font-family="'JetBrains Mono', monospace">cheat-enginer</text>
+
+            <rect x="40" y="104" width="178" height="48" rx="6" fill="var(--engine-soft)" stroke="none"/>
+            <text x="52" y="123" font-size="11" font-family="'JetBrains Mono', monospace" fill="var(--engine)">[lib] ce_engine</text>
+            <text x="52" y="140" font-size="10" fill="var(--ink-3)">rlib + cdylib</text>
+
+            <rect x="40" y="160" width="178" height="48" rx="6" fill="var(--engine-soft)" stroke="none"/>
+            <text x="52" y="179" font-size="11" font-family="'JetBrains Mono', monospace" fill="var(--engine)">android/mod.rs</text>
+            <text x="52" y="196" font-size="10" fill="var(--ink-3)">26 個 JNI 匯出函式</text>
+
+            <rect x="40" y="216" width="178" height="48" rx="6" fill="none" stroke="var(--line)" stroke-dasharray="3 3"/>
+            <text x="52" y="235" font-size="11" font-family="'JetBrains Mono', monospace" fill="var(--ink-3)">[[bin]] · feature tui</text>
+            <text x="52" y="252" font-size="10" fill="var(--ink-3)">桌面 TUI，不進 Android</text>
+
+            <text x="40" y="284" font-size="10" fill="var(--ink-3)">feature gate 把 ratatui / crossterm 完全隔開</text>
+
+            <!-- ── Col 2：build ── -->
+            <rect x="268" y="90" width="170" height="76" rx="10" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="284" y="114" font-size="12.5" font-weight="700" fill="var(--ink)">cargo-ndk</text>
+            <text x="284" y="132" font-size="9.5" fill="var(--ink-3)" font-family="'JetBrains Mono', monospace">-t arm64-v8a -t x86_64</text>
+            <text x="284" y="148" font-size="9.5" fill="var(--ink-3)" font-family="'JetBrains Mono', monospace">--features android</text>
+
+            <rect x="268" y="210" width="170" height="76" rx="10" fill="var(--surface)" stroke="var(--engine)"/>
+            <text x="284" y="234" font-size="12" font-weight="700" fill="var(--engine)" font-family="'JetBrains Mono', monospace">libce_engine.so</text>
+            <text x="284" y="252" font-size="9.5" fill="var(--ink-3)">→ overlay/src/main/jniLibs/</text>
+            <text x="284" y="268" font-size="9.5" fill="var(--ink-3)">16 KB page 對齊</text>
+
+            <!-- ── Col 3：overlay AAR ── -->
+            <rect x="472" y="48" width="224" height="250" rx="10" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="488" y="74" font-size="14" font-weight="700" fill="var(--ink)">:overlay</text>
+            <text x="488" y="93" font-size="10.5" fill="var(--ink-3)">AAR · 純 Java · 零執行期相依</text>
+            <line x1="488" y1="104" x2="680" y2="104" stroke="var(--line-soft)"/>
+            <g font-size="10.5" font-family="'JetBrains Mono', monospace" fill="var(--ink-2)">
+              <text x="488" y="124">NativeBridge</text>
+              <text x="488" y="144">OverlayController</text>
+              <text x="488" y="164">WindowHost</text>
+              <text x="504" y="182" fill="var(--ink-3)" font-size="10">├ ActivityWindowHost</text>
+              <text x="504" y="198" fill="var(--ink-3)" font-size="10">└ SystemOverlayWindowHost</text>
+              <text x="488" y="218">OverlayPanel</text>
+              <text x="488" y="238">BubbleView · ChoiceStrip</text>
+              <text x="488" y="258">OverlayInstallProvider</text>
+            </g>
+            <text x="488" y="284" font-size="10" fill="var(--ink-3)">唯一的分歧點：WindowHost</text>
+
+            <!-- ── Col 4：三支 APK ── -->
+            <rect x="730" y="48" width="226" height="76" rx="10" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="746" y="72" font-size="12.5" font-weight="700" fill="var(--ink)">:sample</text>
+            <text x="746" y="90" font-size="9.5" font-family="'JetBrains Mono', monospace" fill="var(--engine)">debugImplementation</text>
+            <text x="746" y="108" font-size="10" fill="var(--ink-3)">嵌入模式 · 零權限</text>
+
+            <rect x="730" y="148" width="226" height="76" rx="10" fill="var(--surface)" stroke="var(--engine)"/>
+            <text x="746" y="172" font-size="12.5" font-weight="700" fill="var(--engine)">:cheatengine</text>
+            <text x="746" y="190" font-size="9.5" font-family="'JetBrains Mono', monospace" fill="var(--engine)">implementation</text>
+            <text x="746" y="208" font-size="10" fill="var(--ink-3)">獨立模式 · 自帶啟動器</text>
+
+            <rect x="730" y="248" width="226" height="76" rx="10" fill="var(--surface)" stroke="var(--target)" stroke-dasharray="5 4"/>
+            <text x="746" y="272" font-size="12.5" font-weight="700" fill="var(--target)">:game</text>
+            <text x="746" y="290" font-size="10" fill="var(--ink-3)">沒有 dependency 區塊</text>
+            <text x="746" y="308" font-size="10" fill="var(--ink-3)">沒有 .so · 沒有權限</text>
+
+            <!-- ── 連線 ── -->
+            <g fill="none" stroke="var(--line)" stroke-width="1.5">
+              <path id="e1" d="M234,128 L268,128"/>
+              <path id="e2" d="M353,166 L353,210"/>
+              <path id="e3" d="M438,248 C456,248 456,200 472,200"/>
+              <path id="e4" d="M696,150 C714,150 714,86 730,86"/>
+              <path id="e5" d="M696,180 C714,180 714,186 730,186"/>
+            </g>
+            <!-- 遊戲：明確畫出「沒有連線」 -->
+            <path d="M696,230 C714,230 714,286 730,286" fill="none" stroke="var(--target)" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.55"/>
+            <g stroke="var(--write)" stroke-width="2" stroke-linecap="round">
+              <line x1="707" y1="252" x2="719" y2="264"/>
+              <line x1="719" y1="252" x2="707" y2="264"/>
+            </g>
+            <text x="700" y="340" font-size="10.5" fill="var(--write)" font-weight="700">無依賴</text>
+            <text x="700" y="356" font-size="10" fill="var(--ink-3)">遊戲不含一行引擎程式碼</text>
+
+            <!-- ── SMIL：建置流動的封包 ── -->
+            <g class="pulse">
+              <circle r="4.5" fill="var(--engine)">
+                <animateMotion dur="6s" repeatCount="indefinite" calcMode="linear"
+                  keyPoints="0;0;1;1" keyTimes="0;0.05;0.20;1" path="M234,128 L268,128"/>
+                <animate attributeName="opacity" dur="6s" repeatCount="indefinite"
+                  values="0;1;1;0;0" keyTimes="0;0.05;0.19;0.21;1"/>
+              </circle>
+              <circle r="4.5" fill="var(--engine)">
+                <animateMotion dur="6s" repeatCount="indefinite" calcMode="linear"
+                  keyPoints="0;0;1;1" keyTimes="0;0.20;0.30;1" path="M353,166 L353,210"/>
+                <animate attributeName="opacity" dur="6s" repeatCount="indefinite"
+                  values="0;0;1;1;0;0" keyTimes="0;0.19;0.20;0.29;0.31;1"/>
+              </circle>
+              <circle r="4.5" fill="var(--engine)">
+                <animateMotion dur="6s" repeatCount="indefinite" calcMode="linear"
+                  keyPoints="0;0;1;1" keyTimes="0;0.30;0.45;1" path="M438,248 C456,248 456,200 472,200"/>
+                <animate attributeName="opacity" dur="6s" repeatCount="indefinite"
+                  values="0;0;1;1;0;0" keyTimes="0;0.29;0.30;0.44;0.46;1"/>
+              </circle>
+              <circle r="4.5" fill="var(--engine)">
+                <animateMotion dur="6s" repeatCount="indefinite" calcMode="linear"
+                  keyPoints="0;0;1;1" keyTimes="0;0.45;0.60;1" path="M696,150 C714,150 714,86 730,86"/>
+                <animate attributeName="opacity" dur="6s" repeatCount="indefinite"
+                  values="0;0;1;1;0;0" keyTimes="0;0.44;0.45;0.59;0.61;1"/>
+              </circle>
+              <circle r="4.5" fill="var(--engine)">
+                <animateMotion dur="6s" repeatCount="indefinite" calcMode="linear"
+                  keyPoints="0;0;1;1" keyTimes="0;0.45;0.60;1" path="M696,180 C714,180 714,186 730,186"/>
+                <animate attributeName="opacity" dur="6s" repeatCount="indefinite"
+                  values="0;0;1;1;0;0" keyTimes="0;0.44;0.45;0.59;0.61;1"/>
+              </circle>
+            </g>
+
+          </g>
+        </svg>
+      </div>
+      <figcaption>
+        <b>建置相依。</b> Gradle 的 <span class="chip">cargoNdk</span> task 掛在 <span class="chip">:overlay</span> 的
+        <span class="chip">MergeSourceSetFolders</span> 上，所以 <span class="chip">:cheatengine</span> 是<em>遞移</em>取得 <span class="chip">.so</span> 的 ——
+        該模組裡沒有一行程式碼知道 Rust 存在。<span class="chip">:game</span> 那條打叉的虛線是刻意的：
+        兩個 package 有兩個 ClassLoader，若遊戲也帶了同一個 AAR，第二次 <span class="chip">System.loadLibrary</span> 會丟
+        <span class="chip w">already opened by ClassLoader</span>。<span class="chip">verifyGameHasNoEngine</span> 這個 Gradle task 就是守這件事的。
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ===================================================== 2. 運作架構 -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">02</span>
+      <h2>運作架構：兩個 package 合併成一個行程</h2>
+    </div>
+    <div class="prose">
+      <p>
+        獨立模式的全部魔法只有兩個 manifest 屬性加一把相同的簽章金鑰。
+        <span class="chip">android:sharedUserId</span> 讓兩支 APK 拿到同一個 Linux uid，
+        <span class="chip">android:process</span> 給一個<strong>全域</strong>行程名（不能以 <span class="chip">:</span> 開頭，
+        那是 package 私有的形式，永遠共用不了），ActivityManager 於是把兩者裝進同一個 <span class="chip">ProcessRecord</span>。
+      </p>
+    </div>
+
+    <figure>
+      <div class="fig-scroll">
+        <svg viewBox="0 0 980 600" role="img" aria-label="兩支 APK 經 ActivityManager 合併為單一行程的示意圖">
+          <g font-family="'Noto Sans TC', sans-serif">
+
+            <!-- ── 兩張 APK 卡 ── -->
+            <rect x="70" y="24" width="360" height="152" rx="10" fill="var(--surface)" stroke="var(--engine)"/>
+            <text x="90" y="50" font-size="13.5" font-weight="700" fill="var(--engine)">Cheat Engine APK</text>
+            <text x="90" y="68" font-size="10" font-family="'JetBrains Mono', monospace" fill="var(--ink-3)">dev.marc.ce.app</text>
+            <rect x="90" y="80" width="320" height="26" rx="4" fill="var(--engine-soft)"/>
+            <text x="102" y="98" font-size="10.5" font-family="'JetBrains Mono', monospace" fill="var(--engine)">android:sharedUserId="dev.marc.ce.shared"</text>
+            <rect x="90" y="112" width="320" height="26" rx="4" fill="var(--engine-soft)"/>
+            <text x="102" y="130" font-size="10.5" font-family="'JetBrains Mono', monospace" fill="var(--engine)">android:process="dev.marc.ce.shared.proc"</text>
+            <text x="90" y="160" font-size="10" fill="var(--ink-3)">＋ SYSTEM_ALERT_WINDOW ＋ foreground service</text>
+
+            <rect x="550" y="24" width="360" height="152" rx="10" fill="var(--surface)" stroke="var(--target)"/>
+            <text x="570" y="50" font-size="13.5" font-weight="700" fill="var(--target)">Dungeon Tap APK</text>
+            <text x="570" y="68" font-size="10" font-family="'JetBrains Mono', monospace" fill="var(--ink-3)">dev.marc.ce.game</text>
+            <rect x="570" y="80" width="320" height="26" rx="4" fill="var(--target-soft)"/>
+            <text x="582" y="98" font-size="10.5" font-family="'JetBrains Mono', monospace" fill="var(--target)">android:sharedUserId="dev.marc.ce.shared"</text>
+            <rect x="570" y="112" width="320" height="26" rx="4" fill="var(--target-soft)"/>
+            <text x="582" y="130" font-size="10.5" font-family="'JetBrains Mono', monospace" fill="var(--target)">android:process="dev.marc.ce.shared.proc"</text>
+            <text x="570" y="160" font-size="10" fill="var(--ink-3)">零權限 · 零 dependency · 零 native</text>
+
+            <!-- 相同簽章 -->
+            <path d="M430,100 L470,100 M510,100 L550,100" stroke="var(--line)" stroke-width="1.5" fill="none"/>
+            <rect x="452" y="86" width="76" height="28" rx="14" fill="var(--surface-2)" stroke="var(--line)"/>
+            <text x="490" y="105" font-size="10" fill="var(--ink-2)" text-anchor="middle">同一把簽章</text>
+
+            <!-- ── 收斂到 ActivityManager ── -->
+            <path d="M250,176 C250,206 490,206 490,226" fill="none" stroke="var(--engine)" stroke-width="1.5"/>
+            <path d="M730,176 C730,206 490,206 490,226" fill="none" stroke="var(--target)" stroke-width="1.5"/>
+
+            <rect x="330" y="226" width="320" height="46" rx="8" fill="var(--surface-2)" stroke="var(--line)"/>
+            <text x="490" y="248" font-size="12" font-weight="700" fill="var(--ink)" text-anchor="middle">ActivityManagerService</text>
+            <text x="490" y="264" font-size="9.5" font-family="'JetBrains Mono', monospace" fill="var(--ink-3)" text-anchor="middle">同 uid ＋ 同 process 名 ＋ 同簽章 → 一個 ProcessRecord</text>
+
+            <path d="M490,272 L490,304" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+            <path d="M484,296 L490,306 L496,296 Z" fill="var(--line)"/>
+
+            <!-- ── 單一行程 ── -->
+            <rect x="60" y="308" width="860" height="264" rx="12" fill="var(--surface)" stroke="var(--ink-3)" stroke-width="1.5">
+              <animate attributeName="stroke" values="var(--ink-3);var(--engine);var(--ink-3)" dur="6s" repeatCount="indefinite"/>
+            </rect>
+
+            <text x="84" y="338" font-size="13" font-weight="700" fill="var(--ink)">單一 Linux 行程</text>
+            <text x="84" y="357" font-size="10.5" font-family="'JetBrains Mono', monospace" fill="var(--ink-2)">dev.marc.ce.shared.proc　·　uid 10215　·　pid 8532</text>
+            <text x="640" y="357" font-size="10" font-family="'JetBrains Mono', monospace" fill="var(--ink-3)">packageList = {dev.marc.ce.app, dev.marc.ce.game}</text>
+            <line x1="84" y1="370" x2="896" y2="370" stroke="var(--line-soft)"/>
+
+            <!-- 兩個 ClassLoader -->
+            <rect x="84" y="386" width="248" height="104" rx="8" fill="var(--engine-soft)"/>
+            <text x="100" y="408" font-size="11" font-weight="700" fill="var(--engine)">ClassLoader A</text>
+            <g font-size="10" fill="var(--ink-2)" font-family="'JetBrains Mono', monospace">
+              <text x="100" y="428">Application (CE)</text>
+              <text x="100" y="446">EngineService</text>
+              <text x="100" y="464">System.loadLibrary("ce_engine")</text>
+              <text x="100" y="482">OverlayController</text>
+            </g>
+
+            <rect x="348" y="386" width="248" height="104" rx="8" fill="var(--target-soft)"/>
+            <text x="364" y="408" font-size="11" font-weight="700" fill="var(--target)">ClassLoader B</text>
+            <g font-size="10" fill="var(--ink-2)" font-family="'JetBrains Mono', monospace">
+              <text x="364" y="428">Application (Game)</text>
+              <text x="364" y="446">GameActivity</text>
+              <text x="364" y="464">GameState.S</text>
+              <text x="364" y="482">ByteBuffer.allocateDirect(64)</text>
+            </g>
+
+            <!-- Rust 執行緒 -->
+            <rect x="612" y="386" width="284" height="104" rx="8" fill="var(--surface-2)" stroke="var(--line)"/>
+            <text x="628" y="408" font-size="11" font-weight="700" fill="var(--ink)">Rust · Session</text>
+            <g font-size="10" fill="var(--ink-2)">
+              <text x="628" y="428">scan thread　<tspan fill="var(--ink-3)">背景掃描</tspan></text>
+              <text x="628" y="446">freeze thread　<tspan fill="var(--write)">每 100 ms 寫回</tspan></text>
+              <text x="628" y="464">map refresh　<tspan fill="var(--ink-3)">每 2 s</tspan></text>
+              <text x="628" y="482">address table　<tspan fill="var(--ink-3)">JSON 持久化</tspan></text>
+            </g>
+
+            <!-- 共用底層 -->
+            <rect x="84" y="504" width="812" height="52" rx="8" fill="none" stroke="var(--ink-3)" stroke-dasharray="4 4"/>
+            <text x="100" y="524" font-size="11" font-weight="700" fill="var(--ink-2)">一份 ART runtime · 一份 native heap · 一份位址空間</text>
+            <text x="100" y="544" font-size="10.5" font-family="'JetBrains Mono', monospace" fill="var(--engine)">/proc/self/maps　·　/proc/self/mem　— 在這裡，「self」就是這整個行程</text>
+
+            <!-- ── SMIL：兩個身分向下合流 ── -->
+            <g>
+              <rect x="-38" y="-9" width="76" height="18" rx="9" fill="var(--engine)" opacity="0">
+                <animate attributeName="opacity" dur="6s" repeatCount="indefinite"
+                  values="0;0;1;1;0;0" keyTimes="0;0.10;0.16;0.42;0.48;1"/>
+              </rect>
+              <text x="0" y="4" font-size="9" fill="var(--ground)" text-anchor="middle" opacity="0" font-family="'JetBrains Mono', monospace">uid 10215
+                <animate attributeName="opacity" dur="6s" repeatCount="indefinite"
+                  values="0;0;1;1;0;0" keyTimes="0;0.10;0.16;0.42;0.48;1"/>
+              </text>
+              <animateMotion dur="6s" repeatCount="indefinite" calcMode="linear"
+                keyPoints="0;0;1;1" keyTimes="0;0.12;0.45;1"
+                path="M250,190 C250,240 490,250 490,340"/>
+            </g>
+            <g>
+              <rect x="-38" y="-9" width="76" height="18" rx="9" fill="var(--target)" opacity="0">
+                <animate attributeName="opacity" dur="6s" repeatCount="indefinite"
+                  values="0;0;1;1;0;0" keyTimes="0;0.10;0.16;0.42;0.48;1"/>
+              </rect>
+              <text x="0" y="4" font-size="9" fill="var(--ground)" text-anchor="middle" opacity="0" font-family="'JetBrains Mono', monospace">uid 10215
+                <animate attributeName="opacity" dur="6s" repeatCount="indefinite"
+                  values="0;0;1;1;0;0" keyTimes="0;0.10;0.16;0.42;0.48;1"/>
+              </text>
+              <animateMotion dur="6s" repeatCount="indefinite" calcMode="linear"
+                keyPoints="0;0;1;1" keyTimes="0;0.12;0.45;1"
+                path="M730,190 C730,240 490,250 490,340"/>
+            </g>
+
+            <!-- ── SMIL：ClassLoader B 的記憶體被 A 看見 ── -->
+            <path d="M472,504 C472,498 472,494 472,490" fill="none" stroke="none"/>
+            <circle r="4" fill="var(--write)" opacity="0">
+              <animateMotion dur="6s" repeatCount="indefinite" calcMode="linear"
+                keyPoints="0;0;1;1" keyTimes="0;0.58;0.80;1"
+                path="M472,486 L472,520 L200,520 L200,490"/>
+              <animate attributeName="opacity" dur="6s" repeatCount="indefinite"
+                values="0;0;1;1;0;0" keyTimes="0;0.57;0.58;0.79;0.82;1"/>
+            </circle>
+
+          </g>
+        </svg>
+      </div>
+      <figcaption>
+        <b>合流。</b> 行程裡有<em>兩個</em> <span class="chip">Application</span> 物件與<em>兩個</em> ClassLoader，
+        但只有<em>一份</em> ART runtime、一份 native heap、一份 <span class="chip">/proc/self/maps</span>。
+        <span class="chip">Session::attach_self()</span> 完全沒有為此改動 —— 它讀的一直是 <span class="chip">/proc/self/mem</span>，
+        而在共用行程裡「self」自然涵蓋遊戲的 heap。紅色那道回流表示：ClassLoader B 配置的
+        <span class="chip">ByteBuffer</span>，對 ClassLoader A 載入的引擎來說就只是一段普通位址。
+      </figcaption>
+    </figure>
+
+    <div class="callout warn">
+      <span class="lbl">兩個 ClassLoader 帶來的實際後果</span>
+      <p>
+        CE package 註冊的 <span class="chip">ActivityLifecycleCallbacks</span> <strong>永遠不會</strong>收到遊戲的 Activity，
+        因此也拿不到它的 <span class="chip">windowToken</span> —— 嵌入模式那條
+        <span class="chip">TYPE_APPLICATION_PANEL</span> 的路在跨 package 時直接不成立。
+        而且在共用行程裡，只有<em>建立</em>行程的那個 package 會在 bind 階段安裝自己的 ContentProvider，
+        後加入的那個是 lazy 的 —— 所以 CE APK 用 <span class="chip">tools:node="remove"</span> 拿掉了
+        <span class="chip">OverlayInstallProvider</span>，一切改由 Service 明確驅動。
+      </p>
+    </div>
+  </section>
+
+  <!-- ===================================================== 3. Android framework -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">03</span>
+      <h2>用了 Android 的哪些架構</h2>
+    </div>
+    <div class="prose">
+      <p>
+        「視窗畫在哪裡」與「誰的記憶體可讀」是兩件<strong>互不相干</strong>的事，各自可能單獨失敗，
+        底下的清單也照這個界線分組。先看視窗這一半 —— 三層視窗的 z-order，以及觸控事件實際落在哪一層。
+      </p>
+    </div>
+
+    <figure>
+      <div class="fig-scroll">
+        <svg viewBox="0 0 980 420" role="img" aria-label="視窗層級與觸控事件分派示意圖">
+          <g font-family="'Noto Sans TC', sans-serif">
+
+            <!-- ── 手機畫面 ── -->
+            <rect x="40" y="30" width="330" height="360" rx="20" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+            <rect x="52" y="42" width="306" height="336" rx="12" fill="var(--diagram-bg)"/>
+
+            <!-- 遊戲內容 -->
+            <text x="70" y="72" font-size="12" font-weight="700" fill="var(--target)">Dungeon Tap</text>
+            <text x="70" y="92" font-size="10" font-family="'JetBrains Mono', monospace" fill="var(--ink-3)">gold 15　score 51　wave 1</text>
+            <rect x="70" y="106" width="270" height="120" rx="8" fill="var(--target-soft)" opacity="0.55"/>
+            <circle cx="230" cy="166" r="26" fill="var(--target)" opacity="0.75"/>
+            <text x="230" y="171" font-size="11" fill="var(--surface)" text-anchor="middle" font-weight="700">W1</text>
+
+            <!-- CE 小球 -->
+            <circle cx="96" cy="128" r="20" fill="var(--surface)" stroke="var(--engine)" stroke-width="2"/>
+            <text x="96" y="133" font-size="11" fill="var(--engine)" text-anchor="middle" font-weight="700">CE</text>
+
+            <!-- CE 面板 -->
+            <rect x="52" y="252" width="306" height="126" rx="0" fill="var(--surface-2)" stroke="var(--engine)"/>
+            <text x="70" y="274" font-size="10.5" font-weight="700" fill="var(--engine)">Scan　Results　Address　Hex</text>
+            <rect x="70" y="286" width="80" height="20" rx="10" fill="var(--engine)"/>
+            <text x="110" y="300" font-size="9" fill="var(--ground)" text-anchor="middle">4 Bytes</text>
+            <rect x="158" y="286" width="86" height="20" rx="10" fill="none" stroke="var(--ink-3)"/>
+            <text x="201" y="300" font-size="9" fill="var(--ink-3)" text-anchor="middle">Exact Value</text>
+            <line x1="70" y1="326" x2="340" y2="326" stroke="var(--ink-3)"/>
+            <rect x="70" y="340" width="70" height="22" rx="4" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="105" y="355" font-size="9" fill="var(--ink-2)" text-anchor="middle">New Scan</text>
+
+            <!-- ── 觸控 A：落在遊戲上 ── -->
+            <g>
+              <circle cx="270" cy="150" r="0" fill="none" stroke="var(--target)" stroke-width="2.5">
+                <animate attributeName="r" values="0;0;22;28" keyTimes="0;0.06;0.16;0.20" dur="7s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;0.9;0" keyTimes="0;0.06;0.16;0.20" dur="7s" repeatCount="indefinite"/>
+              </circle>
+              <circle cx="270" cy="150" r="5" fill="var(--target)" opacity="0">
+                <animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.06;0.17;0.20;1" dur="7s" repeatCount="indefinite"/>
+              </circle>
+            </g>
+            <circle r="5" fill="var(--target)" opacity="0">
+              <animateMotion dur="7s" repeatCount="indefinite" calcMode="linear"
+                keyPoints="0;0;1;1" keyTimes="0;0.18;0.34;1"
+                path="M270,150 C420,150 420,300 470,300"/>
+              <animate attributeName="opacity" dur="7s" repeatCount="indefinite"
+                values="0;0;1;1;0;0" keyTimes="0;0.17;0.18;0.33;0.36;1"/>
+            </circle>
+
+            <!-- ── 觸控 B：落在面板上 ── -->
+            <g>
+              <circle cx="150" cy="296" r="0" fill="none" stroke="var(--engine)" stroke-width="2.5">
+                <animate attributeName="r" values="0;0;22;28" keyTimes="0;0.52;0.62;0.66" dur="7s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;0.9;0" keyTimes="0;0.52;0.62;0.66" dur="7s" repeatCount="indefinite"/>
+              </circle>
+              <circle cx="150" cy="296" r="5" fill="var(--engine)" opacity="0">
+                <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.51;0.52;0.63;0.66;1" dur="7s" repeatCount="indefinite"/>
+              </circle>
+            </g>
+            <circle r="5" fill="var(--engine)" opacity="0">
+              <animateMotion dur="7s" repeatCount="indefinite" calcMode="linear"
+                keyPoints="0;0;1;1" keyTimes="0;0.64;0.80;1"
+                path="M150,296 C400,296 400,200 470,200"/>
+              <animate attributeName="opacity" dur="7s" repeatCount="indefinite"
+                values="0;0;1;1;0;0" keyTimes="0;0.63;0.64;0.79;0.82;1"/>
+            </circle>
+
+            <!-- ── 右側：三層視窗 ── -->
+            <text x="470" y="26" font-size="10.5" fill="var(--ink-3)" letter-spacing="1.6" font-family="'JetBrains Mono', monospace">WINDOW STACK（由上而下）</text>
+
+            <rect x="470" y="44" width="486" height="88" rx="8" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="488" y="68" font-size="12" font-weight="700" fill="var(--engine)">CE 小球　BubbleView</text>
+            <text x="488" y="88" font-size="10" font-family="'JetBrains Mono', monospace" fill="var(--ink-2)">TYPE_APPLICATION_OVERLAY</text>
+            <text x="488" y="106" font-size="10" font-family="'JetBrains Mono', monospace" fill="var(--ink-3)">FLAG_NOT_FOCUSABLE | FLAG_LAYOUT_NO_LIMITS</text>
+            <text x="488" y="122" font-size="10" fill="var(--ink-3)">不搶 IME、不搶 Back 鍵；WRAP_CONTENT 只蓋自己</text>
+
+            <rect x="470" y="152" width="486" height="106" rx="8" fill="var(--surface)" stroke="var(--engine)" stroke-width="1.5"/>
+            <text x="488" y="176" font-size="12" font-weight="700" fill="var(--engine)">CE 面板　OverlayPanel</text>
+            <text x="488" y="196" font-size="10" font-family="'JetBrains Mono', monospace" fill="var(--ink-2)">TYPE_APPLICATION_OVERLAY</text>
+            <text x="488" y="214" font-size="10" font-family="'JetBrains Mono', monospace" fill="var(--write)">FLAG_NOT_TOUCH_MODAL　←　非選配</text>
+            <text x="488" y="232" font-size="10" font-family="'JetBrains Mono', monospace" fill="var(--ink-3)">SOFT_INPUT_ADJUST_RESIZE</text>
+            <text x="488" y="250" font-size="10" fill="var(--ink-3)">可聚焦（才叫得出軟鍵盤），但不吃自己範圍外的觸控</text>
+
+            <rect x="470" y="278" width="486" height="88" rx="8" fill="var(--surface)" stroke="var(--target)"/>
+            <text x="488" y="302" font-size="12" font-weight="700" fill="var(--target)">遊戲 Activity 視窗</text>
+            <text x="488" y="322" font-size="10" font-family="'JetBrains Mono', monospace" fill="var(--ink-2)">TYPE_BASE_APPLICATION</text>
+            <text x="488" y="340" font-size="10" fill="var(--ink-3)">ArenaView / GameActivity — 完全不知道上面有東西</text>
+            <text x="488" y="356" font-size="10" fill="var(--ink-3)">觸控照常抵達，遊戲照常可玩</text>
+
+            <text x="470" y="392" font-size="10.5" fill="var(--ink-3)">
+              嵌入模式只換掉這三層的 <tspan font-family="'JetBrains Mono', monospace" fill="var(--ink-2)">type</tspan> 與
+              <tspan font-family="'JetBrains Mono', monospace" fill="var(--ink-2)">token</tspan>：改成
+              <tspan font-family="'JetBrains Mono', monospace" fill="var(--ink-2)">TYPE_APPLICATION_PANEL</tspan> ＋ 宿主 Activity 的 windowToken，其餘完全相同。
+            </text>
+
+          </g>
+        </svg>
+      </div>
+      <figcaption>
+        <b>觸控落點。</b> 兩次點擊示範同一件事的兩面：點在面板外，事件穿過去交給遊戲；點在面板上，面板接走。
+        少了 <span class="chip w">FLAG_NOT_TOUCH_MODAL</span>，一個可聚焦的視窗就是 touch-modal ——
+        面板一開，底下的 App 完全按不動，而「在遊戲裡改一個值、再回來收斂掃描」正是這個工具的核心動線。
+        這是第一階段實機才發現的缺陷之一。
+      </figcaption>
+    </figure>
+
+    <div class="api-group" style="--role: var(--engine)">
+      <h3>行程與身分</h3>
+      <dl class="api">
+        <div><dt>android:sharedUserId<br><span style="color:var(--ink-3)">（&lt;manifest&gt;）</span></dt><dd>兩支 APK 拿到同一個 Linux uid。API 29 起 deprecated、Play 擋新 App，但 API 35 實測仍有效。lint 需要 <span class="chip">tools:ignore="Deprecated"</span>。</dd></div>
+        <div><dt>android:process<br><span style="color:var(--ink-3)">（&lt;application&gt;）</span></dt><dd>全域行程名。放在 <span class="chip">&lt;application&gt;</span> 上成為所有元件的預設值，不會漏掉任何一個。</dd></div>
+        <div><dt>PackageManager<br>.getApplicationInfo().uid</dt><dd>CE 啟動器拿它跟 <span class="chip">Process.myUid()</span> 比對，直接在畫面上告訴使用者「共用失敗了」——否則症狀只是「掃不到東西」。</dd></div>
+        <div><dt>&lt;queries&gt;</dt><dd>API 30+ 的 package visibility，<span class="chip">getLaunchIntentForPackage</span> 才看得到遊戲。</dd></div>
+      </dl>
+    </div>
+
+    <div class="api-group" style="--role: var(--engine)">
+      <h3>視窗</h3>
+      <dl class="api">
+        <div><dt>WindowManager.addView<br>LayoutParams.TYPE_APPLICATION_OVERLAY</dt><dd>獨立模式的視窗型別，需要 <span class="chip">SYSTEM_ALERT_WINDOW</span>。不需要任何 Activity 或 token。</dd></div>
+        <div><dt>LayoutParams<br>.TYPE_APPLICATION_PANEL</dt><dd>嵌入模式。掛在宿主自己的 <span class="chip">windowToken</span> 上，因此<strong>零權限</strong>。</dd></div>
+        <div><dt>FLAG_NOT_FOCUSABLE<br>FLAG_NOT_TOUCH_MODAL<br>FLAG_LAYOUT_NO_LIMITS<br>FLAG_LAYOUT_INSET_DECOR</dt><dd>小球不可聚焦；面板可聚焦但必須非 touch-modal。<span class="chip">FLAG_ALT_FOCUSABLE_IM</span> 刻意<strong>不</strong>設 —— 設了會讓 EditText 靜默拒絕鍵盤。</dd></div>
+        <div><dt>Context.createWindowContext(<br>&nbsp;&nbsp;Display, type, options)</dt><dd>API 30+。<strong>必須用三參數版</strong>並明確指定 display：兩參數版從 receiver 推導，而 Application context 永遠沒有關聯 display，會丟 <span class="chip w">UnsupportedOperationException</span>。</dd></div>
+        <div><dt>ContextThemeWrapper<br>android.R.style.Theme_Material</dt><dd>application context 沒有主題，直接拿去 inflate 會得到沒有樣式的元件。</dd></div>
+        <div><dt>View<br>.setOnApplyWindowInsetsListener<br>WindowInsets.Type.systemBars()</dt><dd>targetSdk 35 的視窗是 edge-to-edge，底部錨定的面板不補 inset 就會被導覽列蓋住。</dd></div>
+      </dl>
+    </div>
+
+    <div class="api-group" style="--role: var(--engine)">
+      <h3>服務、權限與生命週期</h3>
+      <dl class="api">
+        <div><dt>Service ＋ startForeground(<br>&nbsp;&nbsp;id, n, FOREGROUND_SERVICE_TYPE_SPECIAL_USE)</dt><dd>API 26+ 的背景服務限制會在遊戲切到前景後停掉 plain service，連視窗一起收。<span class="chip">specialUse</span> 是唯一誠實的型別。</dd></div>
+        <div><dt>&lt;property android:name=<br>"android.app.PROPERTY_<br>SPECIAL_USE_FGS_SUBTYPE"&gt;</dt><dd><span class="chip">specialUse</span> 必備。API 34+ 傳給 <span class="chip">startForeground</span> 的型別若與 manifest 宣告不符，直接丟例外。</dd></div>
+        <div><dt>Settings.canDrawOverlays<br>ACTION_MANAGE_OVERLAY_PERMISSION</dt><dd>在 <span class="chip">onResume</span> 重讀而非快取 —— 有些 ROM 在剛切換完開關時回報會延遲。</dd></div>
+        <div><dt>ContentProvider.onCreate</dt><dd>嵌入模式的自動安裝點，早於 <span class="chip">Application.onCreate</span>。獨立模式刻意 <span class="chip">tools:node="remove"</span> 拿掉。</dd></div>
+        <div><dt>Application<br>.ActivityLifecycleCallbacks</dt><dd>只在嵌入模式使用，由 <span class="chip">ActivityWindowHost</span> 持有。跨 package 時收不到對方的 Activity。</dd></div>
+        <div><dt>NotificationChannel<br>Notification.Action<br>PendingIntent.FLAG_IMMUTABLE</dt><dd>通知列的 Stop 控制。<span class="chip">POST_NOTIFICATIONS</span> 被拒也不影響服務運作，所以啟動器上另有一顆 Stop。</dd></div>
+      </dl>
+    </div>
+
+    <div class="api-group" style="--role: var(--target)">
+      <h3>UI：只用 framework Views</h3>
+      <dl class="api">
+        <div><dt>LinearLayout · ListView · EditText<br>HorizontalScrollView · ProgressBar<br>CheckBox · ScrollView</dt><dd>零 AndroidX、零 Kotlin、零 XML。這個 AAR 會被丟進任意 debug APK，每一個執行期相依都是可能強加給宿主的版本衝突。</dd></div>
+        <div><dt>ListView.setItemsCanFocus(true)</dt><dd>沒開的話焦點停在 list 本身，row 內的 <span class="chip">EditText</span> 永遠拿不到焦點，值根本改不了。</dd></div>
+        <div><dt><span style="color:var(--write)">不用</span> Spinner</dt><dd>其 <span class="chip">ListPopupWindow</span> 繼承 anchor 的 token 且預設 <span class="chip">TYPE_APPLICATION_PANEL</span>，掛在 overlay 視窗底下就是 <span class="chip w">BadTokenException</span>，而且沒有公開 API 可改 popup 的 window type。改用畫在面板<em>內</em>、不開新視窗的 <span class="chip">ChoiceStrip</span>。</dd></div>
+        <div><dt>自訂 View ＋ postDelayed</dt><dd>遊戲的 <span class="chip">ArenaView</span>：一個 <span class="chip">onDraw</span> 加 16 ms 的 invalidate 迴圈。不用 SurfaceView、不用任何繪圖函式庫 —— 目標 App 本來就不會有這些。</dd></div>
+      </dl>
+    </div>
+
+    <div class="api-group" style="--role: var(--write)">
+      <h3>原生介面與記憶體</h3>
+      <dl class="api">
+        <div><dt>System.loadLibrary("ce_engine")<br>JNI（jni crate 0.21）</dt><dd>26 個匯出函式，全部包 <span class="chip">catch_unwind</span> —— 任何 unwind 進 JVM 都是立即當掉，所以 Android profile 永遠不可以設 <span class="chip">panic = "abort"</span>。</dd></div>
+        <div><dt>/proc/self/maps</dt><dd>列出可讀寫的 region。無條件排除 <span class="chip">/dev/**</span>、<span class="chip">[vvar]</span>、<span class="chip">[vsyscall]</span>、<span class="chip">[vectors]</span> —— 讀這些會掛。</dd></div>
+        <div><dt>/proc/self/mem<br>pread / pwrite</dt><dd>用 <span class="chip">FileExt::read_at/write_at</span> 操作快取的 fd，<span class="chip">&amp;self</span> 即可、沒有 seek race。短讀截斷而非整個失敗。</dd></div>
+        <div><dt>ByteBuffer.allocateDirect</dt><dd>在 Android 上會拿到 ART 的 <strong>non-movable byte[]</strong>，所以位址在行程存活期間穩定 —— 這正是遊戲把狀態放這裡的原因。</dd></div>
+        <div><dt><span style="color:var(--write)">對照組</span><br>普通物件的 instance 欄位</dt><dd>住在 region space，會被 concurrent-copying GC 搬走，位址隨時失效。<em>static</em> 原始型別反而住在 Class 物件、non-moving space，示範不出這件事。</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <!-- ===================================================== 4. 怎麼連通 -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">04</span>
+      <h2>怎麼連通：一次寫入的完整路徑</h2>
+    </div>
+    <div class="prose">
+      <p>
+        從手指到遊戲畫面改變，中間只有一條路。上方那條是寫入（使用者驅動），
+        下方那條是讀回（Java 每 250 ms 主動 poll）。
+        關鍵設計是<strong>沒有任何 JNI 呼叫從 Rust 執行緒發出</strong> ——
+        掃描與凍結執行緒只碰 atomics 與 Rust 自己的資料，由 Java 來輪詢，
+        這樣就整類消滅了 <span class="chip">AttachCurrentThread</span> 相關的當機。
+      </p>
+    </div>
+
+    <figure>
+      <div class="fig-scroll">
+        <svg viewBox="0 0 980 380" role="img" aria-label="從觸控到記憶體寫入再到遊戲畫面的資料路徑">
+          <g font-family="'Noto Sans TC', sans-serif">
+
+            <!-- 寫入軌 -->
+            <text x="30" y="30" font-size="10.5" fill="var(--write)" letter-spacing="1.4" font-family="'JetBrains Mono', monospace">寫入 →</text>
+            <line x1="30" y1="52" x2="950" y2="52" stroke="var(--line)" stroke-width="1.5"/>
+            <path d="M944,47 L954,52 L944,57 Z" fill="var(--line)"/>
+            <circle r="6" fill="var(--write)">
+              <animateMotion dur="5s" repeatCount="indefinite" calcMode="linear"
+                keyPoints="0;0;1;1" keyTimes="0;0.04;0.46;1" path="M30,52 L950,52"/>
+              <animate attributeName="opacity" dur="5s" repeatCount="indefinite"
+                values="0;1;1;0;0" keyTimes="0;0.04;0.45;0.48;1"/>
+            </circle>
+
+            <!-- 六個節點 -->
+            <g>
+              <rect x="30" y="76" width="130" height="96" rx="9" fill="var(--surface)" stroke="var(--line)"/>
+              <text x="95" y="106" font-size="12" font-weight="700" fill="var(--ink)" text-anchor="middle">觸控</text>
+              <text x="95" y="126" font-size="10" fill="var(--ink-3)" text-anchor="middle">MotionEvent</text>
+              <text x="95" y="146" font-size="9.5" fill="var(--ink-3)" text-anchor="middle">＋ 軟鍵盤輸入</text>
+            </g>
+            <g>
+              <rect x="188" y="76" width="130" height="96" rx="9" fill="var(--surface)" stroke="var(--engine)"/>
+              <text x="253" y="102" font-size="11.5" font-weight="700" fill="var(--engine)" text-anchor="middle">OverlayPanel</text>
+              <text x="253" y="120" font-size="9.5" fill="var(--ink-3)" text-anchor="middle">framework View</text>
+              <text x="253" y="140" font-size="9.5" fill="var(--ink-3)" text-anchor="middle">只有 view state</text>
+              <text x="253" y="158" font-size="9.5" fill="var(--ink-3)" text-anchor="middle">poll 每 250 ms</text>
+            </g>
+            <g>
+              <rect x="346" y="76" width="130" height="96" rx="9" fill="var(--surface)" stroke="var(--engine)"/>
+              <text x="411" y="102" font-size="11.5" font-weight="700" fill="var(--engine)" text-anchor="middle">NativeBridge</text>
+              <text x="411" y="120" font-size="9.5" fill="var(--ink-3)" text-anchor="middle">JNI 邊界</text>
+              <text x="411" y="140" font-size="9.5" fill="var(--ink-3)" text-anchor="middle">catch_unwind</text>
+              <text x="411" y="158" font-size="9.5" fill="var(--ink-3)" text-anchor="middle">24-byte packed record</text>
+            </g>
+            <g>
+              <rect x="504" y="76" width="130" height="96" rx="9" fill="var(--surface)" stroke="var(--engine)" stroke-width="1.5"/>
+              <text x="569" y="102" font-size="11.5" font-weight="700" fill="var(--engine)" text-anchor="middle">Session</text>
+              <text x="569" y="120" font-size="9.5" fill="var(--ink-3)" text-anchor="middle">Rust · 全部狀態</text>
+              <text x="569" y="140" font-size="9.5" fill="var(--ink-3)" text-anchor="middle">scan / freeze 執行緒</text>
+              <text x="569" y="158" font-size="9.5" fill="var(--ink-3)" text-anchor="middle">ScanLimits 上限保護</text>
+            </g>
+            <g>
+              <rect x="662" y="76" width="130" height="96" rx="9" fill="var(--surface)" stroke="var(--write)"/>
+              <text x="727" y="102" font-size="10.5" font-weight="700" fill="var(--write)" text-anchor="middle" font-family="'JetBrains Mono', monospace">/proc/self/mem</text>
+              <text x="727" y="122" font-size="9.5" fill="var(--ink-3)" text-anchor="middle">pread / pwrite</text>
+              <text x="727" y="142" font-size="9.5" fill="var(--ink-3)" text-anchor="middle">單次上限 4 MiB</text>
+              <text x="727" y="160" font-size="9.5" fill="var(--ink-3)" text-anchor="middle">無需任何權限</text>
+            </g>
+            <g>
+              <rect x="820" y="76" width="130" height="96" rx="9" fill="var(--surface)" stroke="var(--target)"/>
+              <text x="885" y="100" font-size="11.5" font-weight="700" fill="var(--target)" text-anchor="middle">GameState</text>
+              <text x="885" y="118" font-size="9.5" fill="var(--ink-3)" text-anchor="middle">direct ByteBuffer</text>
+              <text x="885" y="138" font-size="9.5" fill="var(--ink-3)" text-anchor="middle">0x732B0080</text>
+              <text x="885" y="158" font-size="9.5" fill="var(--ink-3)" text-anchor="middle">→ HUD 每 200 ms 重繪</text>
+            </g>
+
+            <!-- 節點間的細連線 -->
+            <g stroke="var(--line)" stroke-width="1">
+              <line x1="160" y1="124" x2="188" y2="124"/>
+              <line x1="318" y1="124" x2="346" y2="124"/>
+              <line x1="476" y1="124" x2="504" y2="124"/>
+              <line x1="634" y1="124" x2="662" y2="124"/>
+              <line x1="792" y1="124" x2="820" y2="124"/>
+            </g>
+
+            <!-- 讀回軌 -->
+            <line x1="30" y1="196" x2="950" y2="196" stroke="var(--line)" stroke-width="1.5"/>
+            <path d="M36,191 L26,196 L36,201 Z" fill="var(--line)"/>
+            <text x="880" y="220" font-size="10.5" fill="var(--engine)" letter-spacing="1.4" font-family="'JetBrains Mono', monospace" text-anchor="end">← 讀回（Java poll）</text>
+            <circle r="6" fill="var(--engine)">
+              <animateMotion dur="5s" repeatCount="indefinite" calcMode="linear"
+                keyPoints="0;0;1;1" keyTimes="0;0.52;0.94;1" path="M950,196 L30,196"/>
+              <animate attributeName="opacity" dur="5s" repeatCount="indefinite"
+                values="0;0;1;1;0;0" keyTimes="0;0.51;0.52;0.93;0.96;1"/>
+            </circle>
+
+            <!-- 凍結迴圈 -->
+            <path d="M569,172 L569,258 L727,258 L727,172"
+                  fill="none" stroke="var(--write)" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.75"/>
+            <circle r="5" fill="var(--write)">
+              <animateMotion dur="1.6s" repeatCount="indefinite" calcMode="linear"
+                path="M569,172 L569,258 L727,258 L727,172"/>
+            </circle>
+            <rect x="574" y="272" width="150" height="24" rx="12" fill="var(--write-soft)"/>
+            <text x="649" y="288" font-size="10" fill="var(--write)" text-anchor="middle" font-weight="700">freeze thread · 每 100 ms</text>
+            <text x="569" y="316" font-size="10" fill="var(--ink-3)">
+              寫回前先用 <tspan font-family="'JetBrains Mono', monospace" fill="var(--ink-2)">partition_point</tspan> 確認位址仍落在可寫 region 內 ——
+            </text>
+            <text x="569" y="334" font-size="10" fill="var(--ink-3)">GC 搬走或 region 被 unmap 之後，寫入會被擋掉而不是打壞別人的記憶體。</text>
+
+            <!-- 註記 -->
+            <text x="30" y="316" font-size="10" fill="var(--ink-3)">Rust 執行緒<tspan font-weight="700" fill="var(--ink-2)">從不</tspan>回呼 JNI，</text>
+            <text x="30" y="334" font-size="10" fill="var(--ink-3)">只碰 atomics 與 Rust 資料；由 Java 輪詢。</text>
+
+          </g>
+        </svg>
+      </div>
+      <figcaption>
+        <b>單向資料流。</b> 全部持久狀態都在 Rust 側（<span class="chip">src/session.rs</span>），Java 只保留分頁索引與文字緩衝，
+        所以 Activity 被銷毀重建的代價只是重新 attach 視窗。
+        <span class="chip">Results</span> 分頁顯示的是<em>掃描當下</em>的值，<span class="chip">Address</span> 分頁才是即時讀取 ——
+        實測時這個差別會誤導人。
+      </figcaption>
+    </figure>
+
+    <h3>實際跑過的一次寫入</h3>
+    <pre><span class="c"># 掃描：u64，把 gold 與 score 一起當成一個值（極為獨特，一輪就收斂）</span>
+gold = 15, score = 59
+  → 59 × 2^32 + 15 = <b>253403070479</b>
+  → Exact Value / 8 Bytes (u64) / New Scan        <span class="c">→ 7 筆</span>
+  → 其中 <span class="k">0x732B0088</span> 就是 GameState 的 gold 欄位
+
+<span class="c"># 寫入：一次改掉兩個欄位</span>
+  gold = 99999, score = 1000
+  → 1000 × 2^32 + 99999 = <b>4294967395999</b>
+  → nativeTableSetValue → write_memory → <span class="r">pwrite(/proc/self/mem)</span>
+  → 遊戲 HUD 200 ms 後重繪：<span class="k">gold 99999　score 1000</span>
+
+<span class="c"># 凍結：勾 F，買五把劍（atk 3 → 13，共扣 300 金）</span>
+  gold  <span class="k">99999</span>   ← Rust 每 100 ms 寫回，扣款完全無效
+  javaGold <span class="r">99939</span>   ← Java 鏡像沒被寫，漂走了
+
+<span class="c"># 同一個數字、兩個位置 —— ART 搬移式 GC 的教學點自己演出來了</span></pre>
+
+    <h3>掃描收斂</h3>
+    <figure>
+      <div class="fig-scroll">
+        <svg viewBox="0 0 980 210" role="img" aria-label="掃描結果從 17668 筆收斂到 5 筆的動畫">
+          <g font-family="'Noto Sans TC', sans-serif">
+            <!-- 第一批：Next Scan 後死掉 -->
+            <g fill="var(--engine)">
+              <animate attributeName="opacity" dur="6s" repeatCount="indefinite"
+                values="0.85;0.85;0.08;0.08;0.85" keyTimes="0;0.3;0.36;0.95;1"/>
+              <circle cx="40" cy="70" r="5"/><circle cx="76" cy="70" r="5"/><circle cx="112" cy="70" r="5"/><circle cx="148" cy="70" r="5"/>
+              <circle cx="184" cy="70" r="5"/><circle cx="220" cy="70" r="5"/><circle cx="256" cy="70" r="5"/><circle cx="292" cy="70" r="5"/>
+              <circle cx="328" cy="70" r="5"/><circle cx="364" cy="70" r="5"/><circle cx="400" cy="70" r="5"/><circle cx="436" cy="70" r="5"/>
+              <circle cx="40" cy="106" r="5"/><circle cx="76" cy="106" r="5"/><circle cx="112" cy="106" r="5"/><circle cx="148" cy="106" r="5"/>
+              <circle cx="184" cy="106" r="5"/><circle cx="220" cy="106" r="5"/><circle cx="256" cy="106" r="5"/><circle cx="292" cy="106" r="5"/>
+              <circle cx="328" cy="106" r="5"/><circle cx="364" cy="106" r="5"/><circle cx="400" cy="106" r="5"/><circle cx="436" cy="106" r="5"/>
+            </g>
+            <!-- 第二批：再一輪後死掉 -->
+            <g fill="var(--engine)">
+              <animate attributeName="opacity" dur="6s" repeatCount="indefinite"
+                values="0.85;0.85;0.85;0.08;0.08;0.85" keyTimes="0;0.3;0.6;0.66;0.95;1"/>
+              <circle cx="40" cy="142" r="5"/><circle cx="76" cy="142" r="5"/><circle cx="112" cy="142" r="5"/><circle cx="148" cy="142" r="5"/>
+              <circle cx="184" cy="142" r="5"/><circle cx="220" cy="142" r="5"/><circle cx="256" cy="142" r="5"/><circle cx="292" cy="142" r="5"/>
+              <circle cx="328" cy="142" r="5"/><circle cx="364" cy="142" r="5"/>
+            </g>
+            <!-- 倖存者 -->
+            <g fill="var(--write)">
+              <circle cx="400" cy="142" r="5"/><circle cx="436" cy="142" r="5"/>
+              <circle cx="400" cy="142" r="5">
+                <animate attributeName="r" values="5;5;5;10;5;5" keyTimes="0;0.6;0.66;0.7;0.76;1" dur="6s" repeatCount="indefinite"/>
+              </circle>
+            </g>
+
+            <!-- 階段標籤 -->
+            <g font-family="'JetBrains Mono', monospace">
+              <g opacity="0">
+                <animate attributeName="opacity" dur="6s" repeatCount="indefinite" values="1;1;0;0;1" keyTimes="0;0.29;0.31;0.95;1"/>
+                <text x="530" y="86" font-size="30" fill="var(--ink)" font-weight="500">17668</text>
+                <text x="530" y="110" font-size="11" fill="var(--ink-3)" font-family="'Noto Sans TC', sans-serif">Exact Value · gold 15</text>
+              </g>
+              <g opacity="0">
+                <animate attributeName="opacity" dur="6s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.30;0.32;0.59;0.61;1"/>
+                <text x="530" y="86" font-size="30" fill="var(--ink)" font-weight="500">12644</text>
+                <text x="530" y="110" font-size="11" fill="var(--ink-3)" font-family="'Noto Sans TC', sans-serif">Next Scan · 打一隻怪之後</text>
+              </g>
+              <g opacity="0">
+                <animate attributeName="opacity" dur="6s" repeatCount="indefinite" values="0;0;1;1;0" keyTimes="0;0.60;0.62;0.95;1"/>
+                <text x="530" y="86" font-size="30" fill="var(--write)" font-weight="500">5</text>
+                <text x="530" y="110" font-size="11" fill="var(--ink-3)" font-family="'Noto Sans TC', sans-serif">Next Scan · 再一輪</text>
+              </g>
+            </g>
+
+            <line x1="30" y1="176" x2="950" y2="176" stroke="var(--line-soft)"/>
+            <text x="30" y="198" font-size="10.5" fill="var(--ink-3)">
+              金幣獎勵刻意設成不規則（7–23 隨波次遞增），所以「剛好加 N」不是捷徑，掃描真的必須收斂兩三輪。
+              示意用點陣，非等比例。
+            </text>
+          </g>
+        </svg>
+      </div>
+      <figcaption>
+        <b>掃描上限。</b> Android 側套用 <span class="chip">ScanLimits</span>：結果 200 000 筆、snapshot 32 MiB、單一 region 64 MiB。
+        超過會設 <span class="chip">truncated</span> 旗標並在狀態列顯示 <span class="chip">(capped)</span> ——
+        <span class="chip">Unknown Initial</span> 掃整個共用行程時，這是宿主不被 OOM 掉的唯一理由。
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ===================================================== 5. 兩種模式 -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">05</span>
+      <h2>兩種部署模式的唯一分歧</h2>
+    </div>
+    <div class="prose">
+      <p>
+        <span class="chip">WindowHost</span> 這個介面把「視窗掛在哪裡」隔離成唯一的變異點。
+        它上面的所有東西 —— session、面板、位址表、掃描流程 —— 兩種模式完全共用。
+      </p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th></th><th>嵌入模式</th><th>獨立模式</th></tr>
+        </thead>
+        <tbody>
+          <tr><th>模組</th><td class="e"><span class="mono">:overlay + :sample</span></td><td class="e"><span class="mono">:cheatengine + :game</span></td></tr>
+          <tr><th>交付形式</th><td>編進被掃 App 的 AAR</td><td>自帶啟動器圖示的獨立 APK</td></tr>
+          <tr><th>WindowHost 實作</th><td class="mono">ActivityWindowHost</td><td class="mono">SystemOverlayWindowHost</td></tr>
+          <tr><th>視窗型別</th><td class="mono">TYPE_APPLICATION_PANEL</td><td class="mono">TYPE_APPLICATION_OVERLAY</td></tr>
+          <tr><th>token</th><td>宿主 Activity 的 windowToken</td><td>無</td></tr>
+          <tr><th>權限</th><td><strong>完全不需要</strong></td><td>SYSTEM_ALERT_WINDOW ＋ FGS</td></tr>
+          <tr><th>目標 App 的改動</th><td>一行 <span class="mono">debugImplementation</span></td><td>兩個 manifest 屬性</td></tr>
+          <tr><th>安裝觸發點</th><td>ContentProvider 自動安裝</td><td>Service 明確啟動</td></tr>
+          <tr><th>怎麼進到目標行程</th><td>被連進去</td><td>兩個 package 共用行程</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <span class="lbl">為什麼權限宣告不能寫在 AAR 裡</span>
+      <p>
+        <span class="chip">SYSTEM_ALERT_WINDOW</span> 與 <span class="chip">&lt;service&gt;</span> 只宣告在
+        <span class="chip">:cheatengine</span> 的 manifest。一旦寫進 <span class="chip">:overlay</span>，
+        manifest merger 會把權限推進<em>每一支</em>使用這個 AAR 的宿主 debug APK，嵌入模式「零權限」的性質就沒了。
+        <span class="chip">aapt dump badging</span> 已確認 <span class="chip">:sample</span> 與
+        <span class="chip">:game</span> 兩支 APK 都沒有任何 <span class="chip">uses-permission</span>。
+      </p>
+    </div>
+  </section>
+
+  <!-- ===================================================== 6. 邊界 -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">06</span>
+      <h2>邊界與已知限制</h2>
+    </div>
+    <ul class="plain">
+      <li><strong>這不是通用的作弊器，也做不到。</strong> 它只能看見自己所在的那個行程。任意 App 的記憶體在 stock Android 上需要 root，這個專案刻意不往那走。</li>
+      <li><strong><span class="chip">android:sharedUserId</span> 自 API 29 起 deprecated</strong>，Play 也擋新 App 使用。對 sideload 的開發工具沒問題、API 35 實測可用，但這是獨立模式唯一可能被平台拿掉的地基。若真的失效，退路是把無 UI 的 agent 內嵌進遊戲、CE 變成 localhost socket 的遠端 UI —— 代價是遊戲不再完全獨立。</li>
+      <li><strong>package 的 uid 在安裝當下就固定了。</strong> 事後補 <span class="chip">sharedUserId</span> 沒有作用，覆蓋安裝會得到 <span class="chip w">INSTALL_FAILED_UID_CHANGED</span>。必須兩支都解除安裝再重裝。CE 啟動器會主動比對 uid 並在畫面上講明，因為另一個症狀是「一切正常但掃不到東西」。</li>
+      <li><strong><span class="chip">am force-stop</span> 任一支都會殺掉整個共用行程</strong>，掃描結果與凍結執行緒一起沒。重裝任一支 APK 也一樣。位址表存在 CE 的 <span class="chip">filesDir</span>，下次啟動會重新載入。</li>
+      <li><strong>ART 的搬移式 GC 是本質限制，不是 bug。</strong> 普通 Java 欄位的位址在 GC 之後可能不再是那個值的位址。遊戲用 direct <span class="chip">ByteBuffer</span> 當主要示範對象，並保留一個會漂走的 Java 鏡像當對照。</li>
+      <li><strong>實機測試都在 x86_64 模擬器上。</strong> arm64 的 <span class="chip">.so</span> 有編出來、也是 16 KB page 對齊，但沒有在真機跑過 —— <span class="chip">/dev/*</span> 排除清單與廠商 SELinux 政策正是真機才會不同的地方。</li>
+    </ul>
+  </section>
+
+  <footer class="colophon">
+    <p>
+      引擎 <span class="mono">cheat-enginer</span> v0.2.0 · Rust ＋ 純 Java framework Views ·
+      AGP 8.7.3 / Gradle 8.11.1 / JDK 17 / compileSdk 35 / minSdk 24。
+      本文所有數字（pid、uid、位址、掃描筆數）都取自 2026-09-08 在 Android 15 模擬器上的實際執行，
+      非示意值。所有動畫為 SVG + SMIL，不依賴任何函式庫。
+    </p>
+  </footer>
+
+</div>
+
+<script>
+  (function () {
+    var btn = document.getElementById('animToggle');
+    var svgs = Array.prototype.slice.call(document.querySelectorAll('svg'));
+    var paused = false;
+
+    function apply() {
+      svgs.forEach(function (s) {
+        if (typeof s.pauseAnimations !== 'function') return;
+        if (paused) { s.pauseAnimations(); } else { s.unpauseAnimations(); }
+      });
+      btn.textContent = paused ? '▶ 播放動畫' : '⏸ 暫停動畫';
+      btn.setAttribute('aria-pressed', String(paused));
+    }
+
+    // 尊重系統的「減少動態效果」設定
+    try {
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        paused = true;
+      }
+    } catch (e) { /* 沒有 matchMedia 就照常播放 */ }
+
+    apply();
+    btn.addEventListener('click', function () { paused = !paused; apply(); });
+  })();
+</script>

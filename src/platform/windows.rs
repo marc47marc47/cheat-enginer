@@ -19,6 +19,8 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 
 use super::{MemoryRegion, Platform, ProcessHandle, ProcessInfo};
+use std::sync::Arc;
+
 use crate::error::Result;
 
 // Global state for EnumWindows callback
@@ -116,7 +118,7 @@ impl Platform for WindowsPlatform {
         Ok(processes)
     }
 
-    fn attach(&self, pid: u32) -> Result<Box<dyn ProcessHandle>> {
+    fn attach(&self, pid: u32) -> Result<Arc<dyn ProcessHandle>> {
         let access =
             PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_VM_OPERATION | PROCESS_QUERY_INFORMATION;
         let handle = unsafe { OpenProcess(access, 0, pid) };
@@ -125,16 +127,18 @@ impl Platform for WindowsPlatform {
                 "Failed to open process {pid}. Run as administrator?"
             ));
         }
-        Ok(Box::new(WindowsProcessHandle { pid, handle }))
+        Ok(Arc::new(WindowsProcessHandle { handle }))
     }
 }
 
 pub struct WindowsProcessHandle {
-    pid: u32,
     handle: HANDLE,
 }
 
+// A process HANDLE is an opaque kernel object; Read/WriteProcessMemory and
+// VirtualQueryEx are all safe to call on it from several threads at once.
 unsafe impl Send for WindowsProcessHandle {}
+unsafe impl Sync for WindowsProcessHandle {}
 
 impl Drop for WindowsProcessHandle {
     fn drop(&mut self) {
@@ -145,10 +149,6 @@ impl Drop for WindowsProcessHandle {
 }
 
 impl ProcessHandle for WindowsProcessHandle {
-    fn pid(&self) -> u32 {
-        self.pid
-    }
-
     fn read_memory(&self, address: usize, size: usize) -> Result<Vec<u8>> {
         let mut buffer = vec![0u8; size];
         let mut bytes_read: usize = 0;
@@ -215,10 +215,9 @@ impl ProcessHandle for WindowsProcessHandle {
                             || (protect & 0x08) != 0
                             || (protect & 0x40) != 0
                             || (protect & 0x80) != 0,
-                        executable: (protect & 0x10) != 0
-                            || (protect & 0x20) != 0
-                            || (protect & 0x40) != 0
-                            || (protect & 0x80) != 0,
+                        // VirtualQueryEx has no pathname column; module names
+                        // would need a separate EnumProcessModules pass.
+                        path: None,
                     });
                 }
 
