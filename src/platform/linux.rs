@@ -64,8 +64,11 @@ impl Platform for LinuxPlatform {
             .write(true)
             .open(&mem_path)
             .or_else(|_| File::open(&mem_path))
-            .map_err(|e| anyhow::anyhow!("Cannot open {mem_path}: {e}"))?;
+            .ok();
 
+        if mem.is_none() && pid != std::process::id() {
+            return Err(anyhow::anyhow!("Cannot open {mem_path}"));
+        }
         Ok(Arc::new(LinuxProcessHandle { pid, mem }))
     }
 }
@@ -74,11 +77,21 @@ pub struct LinuxProcessHandle {
     pid: u32,
     /// Opened once at attach time. `pread`/`pwrite` carry their own offset, so
     /// this needs no locking and the handle stays `Sync`.
-    mem: File,
+    mem: Option<File>,
 }
 
 impl ProcessHandle for LinuxProcessHandle {
     fn read_memory(&self, address: usize, size: usize) -> Result<Vec<u8>> {
+        if self.mem.is_none() {
+            let mut buffer = vec![0u8; size];
+            let mut local = libc::iovec { iov_base: buffer.as_mut_ptr().cast(), iov_len: size };
+            let mut remote = libc::iovec { iov_base: address as *mut libc::c_void, iov_len: size };
+            let n = unsafe { libc::process_vm_readv(self.pid as libc::pid_t, &mut local, 1, &mut remote, 1, 0) };
+            if n < 0 { return Err(std::io::Error::last_os_error().into()); }
+            buffer.truncate(n as usize);
+            return Ok(buffer);
+        }
+        let mem = self.mem.as_ref().unwrap();
         let mut buffer = vec![0u8; size];
         let mut filled = 0usize;
 
@@ -89,8 +102,7 @@ impl ProcessHandle for LinuxProcessHandle {
         // mid-scan - silently dropped an entire mapping from the scan.
         while filled < size {
             let chunk = MAX_CHUNK.min(size - filled);
-            match self
-                .mem
+            match mem
                 .read_at(&mut buffer[filled..filled + chunk], (address + filled) as u64)
             {
                 Ok(0) => break,
@@ -109,12 +121,20 @@ impl ProcessHandle for LinuxProcessHandle {
     }
 
     fn write_memory(&self, address: usize, data: &[u8]) -> Result<()> {
+        if self.mem.is_none() {
+            let mut local = libc::iovec { iov_base: data.as_ptr() as *mut libc::c_void, iov_len: data.len() };
+            let mut remote = libc::iovec { iov_base: address as *mut libc::c_void, iov_len: data.len() };
+            let n = unsafe { libc::process_vm_writev(self.pid as libc::pid_t, &mut local, 1, &mut remote, 1, 0) };
+            if n < 0 || n as usize != data.len() { return Err(std::io::Error::last_os_error().into()); }
+            return Ok(());
+        }
+        let mem = self.mem.as_ref().unwrap();
         // Writes through `/proc/<pid>/mem` go via `FOLL_FORCE`, so they land
         // even on a private mapping the target has left read-only. Shared file
         // mappings are still refused, which is the behaviour we want.
         let mut written = 0usize;
         while written < data.len() {
-            match self.mem.write_at(&data[written..], (address + written) as u64) {
+            match mem.write_at(&data[written..], (address + written) as u64) {
                 Ok(0) => break,
                 Ok(n) => written += n,
                 Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
@@ -136,4 +156,3 @@ impl ProcessHandle for LinuxProcessHandle {
         Ok(parse_maps(&maps))
     }
 }
-

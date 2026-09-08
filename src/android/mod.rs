@@ -37,6 +37,18 @@ fn guard<R>(fallback: R, body: impl FnOnce() -> R) -> R {
     catch_unwind(AssertUnwindSafe(body)).unwrap_or(fallback)
 }
 
+#[cfg(target_os = "android")]
+fn android_error(message: &str) {
+    use std::ffi::CString;
+    unsafe extern "C" {
+        fn __android_log_write(priority: i32, tag: *const std::ffi::c_char,
+                               text: *const std::ffi::c_char) -> i32;
+    }
+    let tag = CString::new("ce-overlay").unwrap();
+    let text = CString::new(message.replace('\0', "?")).unwrap();
+    unsafe { __android_log_write(6, tag.as_ptr(), text.as_ptr()); }
+}
+
 /// Borrow the session behind an opaque handle without taking ownership of it.
 ///
 /// # Safety
@@ -114,7 +126,10 @@ pub extern "system" fn Java_dev_marc_ce_overlay_NativeBridge_nativeInit(
             });
             Arc::into_raw(session) as jlong
         }
-        Err(_) => 0,
+        Err(error) => {
+            android_error(&format!("nativeInit attach failed: {error:#}"));
+            0
+        }
     })
 }
 

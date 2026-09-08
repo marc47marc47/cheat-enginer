@@ -60,6 +60,7 @@ dependencies = [
  "anyhow",
  "crossterm",
  "jni",
+ "libc",
  "ratatui",
  "rayon",
  "serde",

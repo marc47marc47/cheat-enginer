@@ -10,7 +10,7 @@
 #   ./rename.sh --show                           顯示目前的名稱
 #
 # 選項：
-#   --base <package>     新的 package 前綴（必填）。其餘名稱由它推導：
+#   --base <package>     新的 package 前綴。其餘名稱由它推導：
 #                          <base>.app      Cheat Engine 的 applicationId
 #                          <base>.game     遊戲的 applicationId
 #                          <base>.sample   嵌入模式示範的 applicationId
@@ -20,8 +20,20 @@
 #   --ce-label <名稱>    Cheat Engine 的顯示名稱
 #   --game-label <名稱>  遊戲的顯示名稱
 #   --sample-label <名稱>
+#   --shared-user-id <id>  改用指定的 sharedUserId，不跟著 --base 推導
+#   --process <名稱>       改用指定的 android:process，不跟著 --base 推導
 #   --dry-run            預演
 #   --yes                跳過確認
+#
+# sharedUserId 與 process 名稱預設由 --base 推導成 <base>.shared 與
+# <base>.shared.proc，多數情況不需要另外指定。要獨立指定的時機是：
+# 這兩支 App 得加入一個「已經存在」的共用身分（例如你另一組已上架的
+# App 已經用了某個 sharedUserId），那時 package 名稱與共用身分不必一致。
+#
+# 注意 sharedUserId 是「名稱」，不是數字：
+#   android:sharedUserId="dev.marc.ce.shared"   ← 我們宣告的，固定不變
+#   uid 10220                                    ← 系統安裝時分配的，會變
+# App 無法指定 uid。共用行程靠的是兩支宣告了相同的「名稱」。
 #
 # ---------------------------------------------------------------------------
 # 為什麼需要一支腳本，而不是全域搜尋取代
@@ -38,6 +50,18 @@
 #   6. sharedUserId 一改，uid 就是新的 —— 裝置上的舊版必須先解除安裝。
 #
 # 這支腳本會一次改完，並且是可逆的：再跑一次 --base <舊名稱> 就換回來。
+#
+# ---------------------------------------------------------------------------
+# 為什麼 sharedUserId 設在這裡，而不是 pack.sh
+#
+# 因為它是「身分」，不是建置選項 —— 跟 applicationId 同一類，安裝當下就被
+# 寫進系統、之後不能改。設在打包腳本上會讓版控裡的 manifest 說謊：用
+# Android Studio 或 gradle installDebug 建出來的 APK，跟用 pack.sh 建出來的
+# 會有不同的共用身分，而症狀是「兩支都裝得起來、掃描卻找不到東西」，正是
+# 這個專案最想根除的那種無聲失敗。
+#
+# 所以分工是：rename.sh 設定身分，pack.sh 驗證身分一致 —— 就跟
+# keystore.sh 產生金鑰、pack.sh 驗證三支簽章相同是同一個形狀。
 # ---------------------------------------------------------------------------
 
 set -euo pipefail
@@ -50,6 +74,8 @@ NEW_BASE=""
 NEW_CE_LABEL=""
 NEW_GAME_LABEL=""
 NEW_SAMPLE_LABEL=""
+NEW_SUID=""
+NEW_PROC=""
 DRY_RUN=0
 ASSUME_YES=0
 SHOW_ONLY=0
@@ -65,7 +91,7 @@ note() { printf '    %s%s%s\n' "$DIM" "$1" "$RESET"; }
 warn() { printf '    %s! %s%s\n' "$YELLOW" "$1" "$RESET"; }
 ok()   { printf '    %s✓%s %s\n' "$GREEN" "$RESET" "$1"; }
 die()  { printf '\n%s✗ %s%s\n\n' "$RED" "$1" "$RESET" >&2; exit 1; }
-usage() { sed -n '2,32p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,41p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -73,6 +99,8 @@ while [ $# -gt 0 ]; do
     --ce-label)     NEW_CE_LABEL="$2"; shift ;;
     --game-label)   NEW_GAME_LABEL="$2"; shift ;;
     --sample-label) NEW_SAMPLE_LABEL="$2"; shift ;;
+    --shared-user-id) NEW_SUID="$2"; shift ;;
+    --process)        NEW_PROC="$2"; shift ;;
     --dry-run)      DRY_RUN=1 ;;
     --yes|-y)       ASSUME_YES=1 ;;
     --show)         SHOW_ONLY=1 ;;
@@ -93,7 +121,22 @@ CUR_OVERLAY_NS="$(sed -n 's/.*namespace = "\(.*\)"/\1/p' "$SCRIPT_DIR/overlay/bu
 CUR_BASE="${CUR_OVERLAY_NS%.overlay}"
 [ "$CUR_BASE" != "$CUR_OVERLAY_NS" ] || die "overlay 的 namespace 不是 <base>.overlay 的形式：$CUR_OVERLAY_NS"
 
-CUR_CE_LABEL="$(read_attr 'android:label' "$SCRIPT_DIR/cheatengine/src/main/AndroidManifest.xml")"
+CE_MANIFEST="$SCRIPT_DIR/cheatengine/src/main/AndroidManifest.xml"
+GAME_MANIFEST="$SCRIPT_DIR/game/src/main/AndroidManifest.xml"
+
+# 從 manifest 讀「實際宣告的值」，而不是從 base 推導 —— 這樣先前用
+# --shared-user-id 指定過的自訂值才看得出來。
+CUR_SUID="$(read_attr 'android:sharedUserId' "$CE_MANIFEST")"
+CUR_PROC="$(read_attr 'android:process' "$CE_MANIFEST")"
+GAME_SUID="$(read_attr 'android:sharedUserId' "$GAME_MANIFEST")"
+GAME_PROC="$(read_attr 'android:process' "$GAME_MANIFEST")"
+if [ "$CUR_SUID" != "$GAME_SUID" ] || [ "$CUR_PROC" != "$GAME_PROC" ]; then
+  warn "兩支 manifest 的共用身分目前不一致，這支腳本會把它們對齊："
+  note "  CE   sharedUserId=$CUR_SUID  process=$CUR_PROC"
+  note "  Game sharedUserId=$GAME_SUID  process=$GAME_PROC"
+fi
+
+CUR_CE_LABEL="$(read_attr 'android:label' "$CE_MANIFEST")"
 CUR_GAME_LABEL="$(read_attr 'android:label' "$SCRIPT_DIR/game/src/main/AndroidManifest.xml")"
 CUR_SAMPLE_LABEL="$(read_attr 'android:label' "$SCRIPT_DIR/sample/src/main/AndroidManifest.xml")"
 
@@ -104,13 +147,14 @@ if [ "$SHOW_ONLY" -eq 1 ]; then
   info "遊戲            $CUR_BASE.game       「$CUR_GAME_LABEL」"
   info "嵌入模式示範    $CUR_BASE.sample     「$CUR_SAMPLE_LABEL」"
   info "AAR             $CUR_BASE.overlay"
-  info "sharedUserId    $CUR_BASE.shared"
-  info "android:process $CUR_BASE.shared.proc"
+  info "sharedUserId    $CUR_SUID"
+  info "android:process $CUR_PROC"
   printf '\n'
   exit 0
 fi
 
-[ -n "$NEW_BASE" ] || { usage >&2; die "缺少 --base"; }
+# 只想改共用身分或顯示名稱時，--base 可以省略
+[ -n "$NEW_BASE" ] || NEW_BASE="$CUR_BASE"
 
 # ---------------------------------------------------------------- 驗證
 
@@ -138,8 +182,44 @@ validate_package() {
   done
 }
 validate_package "$NEW_BASE"
-[ "$NEW_BASE" != "$CUR_BASE" ] || [ -n "$NEW_CE_LABEL$NEW_GAME_LABEL$NEW_SAMPLE_LABEL" ] \
-  || die "新舊 base 相同且沒有要改名稱，沒有事情可做"
+
+# --shared-user-id / --process 沒給就跟著 base 走
+[ -n "$NEW_SUID" ] || NEW_SUID="${CUR_SUID/#$CUR_BASE/$NEW_BASE}"
+[ -n "$NEW_PROC" ] || NEW_PROC="${CUR_PROC/#$CUR_BASE/$NEW_BASE}"
+
+# 這兩條規則違反了會安裝失敗或安靜地不共用，訊息都指不到重點，所以先擋。
+case "$NEW_SUID" in
+  *[!0-9]*) ;;
+  *) die "sharedUserId 是「名稱」不是數字，你給的是 $NEW_SUID。
+
+        很容易混淆的兩件事：
+          android:sharedUserId   我們宣告的名稱，例如 dev.marc.ce.shared
+          Linux uid              系統在安裝時分配的號碼，例如 10220
+
+        uid 由系統決定，App 無法指定，而且每次重新安裝、每台裝置都不一樣
+        （這個專案開發過程中就出現過 10215 / 10218 / 10219 / 10220）。
+        兩支 APK 共用行程靠的是「名稱相同」，系統再把同一個名稱對應到
+        同一個 uid —— 你要固定的是名稱，不是號碼。
+
+        （唯一有固定號碼的是 android.uid.system 這類平台預留名稱，
+        那需要平台簽章並安裝在系統分割區，側載的 App 用不到。）" ;;
+esac
+case "$NEW_SUID" in
+  *.*) ;;
+  *) die "sharedUserId 必須含有 '.'（Android 的硬性規定）：$NEW_SUID" ;;
+esac
+case "$NEW_PROC" in
+  :*) die "android:process 不能以 ':' 開頭 —— 那是 package 私有的行程，
+        永遠不可能被另一支 APK 共用。請用全域名稱。" ;;
+  *.*) ;;
+  *) die "全域 android:process 名稱必須含有 '.'：$NEW_PROC" ;;
+esac
+
+if [ "$NEW_BASE" = "$CUR_BASE" ] && [ "$NEW_SUID" = "$CUR_SUID" ] \
+   && [ "$NEW_PROC" = "$CUR_PROC" ] \
+   && [ -z "$NEW_CE_LABEL$NEW_GAME_LABEL$NEW_SAMPLE_LABEL" ]; then
+  die "沒有任何東西要改"
+fi
 
 case "$NEW_BASE" in
   *_*) warn "package 含底線，JNI 符號會用 _1 轉義（腳本已處理，但不建議）" ;;
@@ -160,8 +240,8 @@ step "改名計畫"
 printf '    %-22s %s\n' "package base"    "$CUR_BASE  →  $NEW_BASE"
 printf '    %-22s %s\n' "Java 目錄"       "$CUR_PATH  →  $NEW_PATH"
 printf '    %-22s %s\n' "JNI 符號前綴"    "Java_${CUR_JNI}_NativeBridge_  →  Java_${NEW_JNI}_NativeBridge_"
-printf '    %-22s %s\n' "sharedUserId"    "$CUR_BASE.shared  →  $NEW_BASE.shared"
-printf '    %-22s %s\n' "android:process" "$CUR_BASE.shared.proc  →  $NEW_BASE.shared.proc"
+printf '    %-22s %s\n' "sharedUserId"    "$CUR_SUID  →  $NEW_SUID"
+printf '    %-22s %s\n' "android:process" "$CUR_PROC  →  $NEW_PROC"
 [ -n "$NEW_CE_LABEL" ]     && printf '    %-22s %s\n' "CE 顯示名稱"     "「$CUR_CE_LABEL」  →  「$NEW_CE_LABEL」"
 [ -n "$NEW_GAME_LABEL" ]   && printf '    %-22s %s\n' "遊戲顯示名稱"    "「$CUR_GAME_LABEL」  →  「$NEW_GAME_LABEL」"
 [ -n "$NEW_SAMPLE_LABEL" ] && printf '    %-22s %s\n' "示範顯示名稱"    "「$CUR_SAMPLE_LABEL」  →  「$NEW_SAMPLE_LABEL」"
@@ -207,7 +287,7 @@ fi
 
 # ---------------------------------------------------------------- 執行
 
-step "1／5　停掉 Gradle daemon 並清除建置產物"
+step "1／6　停掉 Gradle daemon 並清除建置產物"
 
 # 必須在搬目錄「之前」做。daemon 會抓著 build/ 底下的檔案 handle，
 # Windows 上那會讓 mv 直接拿到 Permission denied。
@@ -222,7 +302,7 @@ fi
 rm -rf "$SCRIPT_DIR"/*/build "$SCRIPT_DIR/.gradle" "$SCRIPT_DIR/dist"
 ok "已停止 daemon 並清除 build/ 與 dist/"
 
-step "2／5　搬移 Java 目錄"
+step "2／6　搬移 Java 目錄"
 
 # mv 在 Windows 上偶爾會被防毒或殘留 handle 擋下，所以留一條複製後刪除的退路。
 move_dir() {
@@ -256,7 +336,7 @@ else
   note "base 沒變，不需要搬目錄"
 fi
 
-step "3／5　改寫 package 名稱與 JNI 符號"
+step "3／6　改寫 package 名稱與 JNI 符號"
 
 # 順序很重要：JNI 符號要在 base 被換掉之前先處理，否則
 # Java_dev_marc_ce_overlay_ 這種底線形式已經對不上了。
@@ -310,7 +390,23 @@ TOUCHED="$(python_rewrite \
   "${TEXT_FILES[@]}")"
 ok "改寫了 $TOUCHED 個檔案"
 
-step "4／5　更新 pack.sh 的產出檔名"
+step "4／6　寫入共用身分"
+
+# 一定要在通用替換「之後」才做，而且用逐屬性改寫而不是字串取代：
+# <base>.shared 是 <base>.shared.proc 的前綴，盲目取代會把 process 名稱切壞。
+set_attr() {
+  local file="$1" attr="$2" value="$3"
+  sed -i "s|$attr=\"[^\"]*\"|$attr=\"$value\"|g" "$file"
+}
+for m in "$CE_MANIFEST" "$GAME_MANIFEST"; do
+  set_attr "$m" 'android:sharedUserId' "$NEW_SUID"
+  set_attr "$m" 'android:process' "$NEW_PROC"
+done
+info "sharedUserId    $NEW_SUID"
+info "android:process $NEW_PROC"
+ok "兩支 manifest 的共用身分已對齊"
+
+step "5／6　更新 pack.sh 的產出檔名"
 
 # APK 檔名是純裝飾，但改名之後還叫 cheat-engine-v0.1.apk 就很怪。
 slugify() {
@@ -331,11 +427,12 @@ if [ -z "$NEW_CE_LABEL$NEW_GAME_LABEL$NEW_SAMPLE_LABEL" ]; then
   note "沒有改顯示名稱，檔名維持不變"
 fi
 
-step "5／5　驗證沒有殘留"
+step "6／6　驗證沒有殘留"
 
 leftovers=0
 for f in "${TEXT_FILES[@]}"; do
   [ -f "$f" ] || continue
+  if [ "$NEW_BASE" = "$CUR_BASE" ]; then continue; fi
   if grep -qF "$CUR_BASE" "$f" 2>/dev/null; then
     warn "仍含舊名稱：${f#"$REPO_ROOT"/}"
     leftovers=$((leftovers + 1))
@@ -359,8 +456,8 @@ printf '\n%s完成%s\n\n' "$BOLD" "$RESET"
 info "新名稱："
 info "  Cheat Engine    $NEW_BASE.app"
 info "  遊戲            $NEW_BASE.game"
-info "  sharedUserId    $NEW_BASE.shared"
-info "  android:process $NEW_BASE.shared.proc"
+info "  sharedUserId    $NEW_SUID"
+info "  android:process $NEW_PROC"
 printf '\n'
 warn "接下來："
 note "  1. 裝置上的舊版必須解除安裝 —— package 名稱與 uid 都變了"

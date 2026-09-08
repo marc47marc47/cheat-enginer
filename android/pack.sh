@@ -11,15 +11,21 @@
 #
 # 工具鏈位置可用環境變數覆寫：JAVA_HOME、GRADLE、ANDROID_HOME、ADB。
 #
-# 這支腳本的驗證不是裝飾。有兩件事一旦錯掉，整個設計會「安靜地」失效
+# 這支腳本的驗證不是裝飾。有三件事一旦錯掉，整個設計會「安靜地」失效
 # ——App 全部照常啟動，只是掃不到任何東西：
 #
 #   1. 遊戲 APK 混進了 libce_engine.so。兩個 package 有兩個 ClassLoader，
 #      第二次 System.loadLibrary 會丟 "already opened by ClassLoader"。
 #   2. 兩支 APK 的簽章不同。sharedUserId 需要相同憑證，否則安裝就會被拒，
 #      或更糟——先前裝過的舊版讓 uid 已經定型。
+#   3. 兩支 APK 的 sharedUserId 或 android:process 不一致。兩支都裝得起來、
+#      都跑得起來，只是各自在自己的行程裡，掃描永遠找不到東西。
 #
-# 所以這兩項檢查失敗時腳本直接退出，不會產出 dist/。
+# 這三項檢查失敗時腳本直接退出，不會產出 dist/。
+#
+# 注意這裡「只驗證、不設定」：金鑰由 keystore.sh 產生，共用身分由 rename.sh
+# 寫進 manifest。身分屬於版控裡的原始碼，不是打包時才決定的旗標——否則用
+# Android Studio 建出來的 APK 會跟用這支腳本建出來的不一樣。
 
 set -euo pipefail
 
@@ -203,7 +209,41 @@ else
   warn "找不到 aapt，略過 ABI 檢查"
 fi
 
-# --- 3. 簽章必須相同 -------------------------------------------------------
+# --- 3. 共用身分必須一致 ---------------------------------------------------
+# 讀「已建好的 APK」而不是原始 manifest：那才是真正會裝到手機上的內容，
+# 也才抓得到 manifest merger 造成的意外。
+if [ -n "$AAPT_BIN" ]; then
+  manifest_attr() {
+    "$AAPT_BIN" dump xmltree "$(winpath "$1")" AndroidManifest.xml 2>/dev/null \
+      | grep -m1 -E "$2(\(0x[0-9a-f]+\))?=" \
+      | sed -n 's/.*="\([^"]*\)".*/\1/p' || true
+  }
+  ce_suid="$(manifest_attr "$CE_APK" 'android:sharedUserId')"
+  game_suid="$(manifest_attr "$GAME_APK" 'android:sharedUserId')"
+  ce_proc="$(manifest_attr "$CE_APK" 'android:process')"
+  game_proc="$(manifest_attr "$GAME_APK" 'android:process')"
+
+  [ -n "$ce_suid" ] || die "CE APK 沒有宣告 sharedUserId，兩支不會共用行程"
+  [ "$ce_suid" = "$game_suid" ] || die "sharedUserId 不一致，兩支不會在同一個行程：
+        CE   $ce_suid
+        Game $game_suid
+        用 ./rename.sh --shared-user-id <id> 對齊。"
+  [ "$ce_proc" = "$game_proc" ] || die "android:process 不一致，兩支不會在同一個行程：
+        CE   $ce_proc
+        Game $game_proc
+        用 ./rename.sh --process <名稱> 對齊。"
+  case "$ce_proc" in
+    :*) die "android:process 是 '$ce_proc'，冒號開頭是 package 私有的行程，
+        永遠不可能被另一支 APK 共用。" ;;
+    *.*) ;;
+    *) die "全域 android:process 名稱必須含有 '.'：$ce_proc" ;;
+  esac
+  ok "共用身分一致 $ce_suid / $ce_proc"
+else
+  warn "找不到 aapt，略過共用身分比對"
+fi
+
+# --- 4. 簽章必須相同 -------------------------------------------------------
 # sharedUserId 的硬性條件。不同憑證會得到 INSTALL_FAILED_SHARED_USER_INCOMPATIBLE，
 # 而錯誤訊息完全指不到重點。
 if [ -n "$APKSIGNER_BIN" ]; then
@@ -225,7 +265,7 @@ else
   warn "找不到 apksigner，略過簽章比對——這是共用 uid 的必要條件，請自行確認"
 fi
 
-# --- 4. arm64 的 16 KB page 對齊 -------------------------------------------
+# --- 5. arm64 的 16 KB page 對齊 -------------------------------------------
 # Android 15 起 64 位元裝置要求 16 KB page 支援。
 READELF=""
 for r in "$SDK"/ndk/*/toolchains/llvm/prebuilt/*/bin/llvm-readelf.exe \

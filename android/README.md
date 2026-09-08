@@ -93,8 +93,13 @@ adb uninstall dev.marc.ce.app ; adb uninstall dev.marc.ce.game
 gradle :cheatengine:installDebug :game:installDebug
 ```
 
-Then open **Cheat Engine**, grant the overlay permission, **Start engine**,
-**Open Dungeon Tap**. To prove they really are one process:
+Then open **Cheat Engine**, grant the overlay permission and **Start engine**.
+The launcher lists every app sharing its uid, marking which of them also share
+its process - those are the scannable ones - and launches whichever you tap.
+Nothing is hardcoded: install a third app with the same two manifest
+attributes and it shows up on its own.
+
+To prove they really are one process:
 
 ```bash
 adb shell ps -A -o PID,NAME | grep ce.shared        # exactly one row
@@ -125,9 +130,12 @@ There is no Gradle wrapper checked in; on this machine the local distribution is
 `C:\devtools\gradle\gradle-8.11.1\bin\gradle.bat`.
 
 For sideloadable builds use `./pack.sh`, which builds all three debug APKs,
-copies them to `dist/` with checksums, and refuses to finish if either of the
-two things that break the design *silently* has happened - an engine `.so` in
-the game APK, or two different signing certificates:
+copies them to `dist/` with checksums, and refuses to finish if any of the
+three things that break the design *silently* has happened - an engine `.so`
+in the game APK, two different signing certificates, or a mismatched
+`sharedUserId` / `android:process` between the two APKs. The last two are read
+back out of the *built* APKs rather than the source manifests, so a manifest
+merger surprise is caught too:
 
 ```bash
 ./pack.sh                # build + verify + package
@@ -163,14 +171,32 @@ signing key has no recovery path.
 ### `./rename.sh` — package names and app labels
 
 ```bash
-./rename.sh --show                           # what the names are now
-./rename.sh --base com.acme.mem --dry-run    # what would change
-./rename.sh --base com.acme.mem \
-            --ce-label "Acme Memory" --game-label "Acme Arena"
+./rename.sh --show                              # what the names are now
+./rename.sh --base <your.package.base> --dry-run
+./rename.sh --base <your.package.base> \
+            --ce-label "<Your Scanner>" --game-label "<Your Game>"
 ```
 
 `--base` drives everything: `<base>.app`, `<base>.game`, `<base>.sample`,
 `<base>.overlay`, the `sharedUserId` and the `android:process` name.
+
+The shared identity can also be set on its own, without touching the package
+names - which is what you want when these two apps have to join a
+`sharedUserId` that already exists:
+
+```bash
+./rename.sh --shared-user-id <existing.shared.id> --process <existing.proc.name>
+```
+
+`sharedUserId` and `android:process` live here rather than in `pack.sh`
+because they are *identity*, not build options: they are written into the
+installed package and cannot be changed afterwards without uninstalling. A
+build-time flag would make the checked-in manifests lie - an APK built in
+Android Studio would carry a different shared identity from one built by
+`pack.sh`, and the symptom is not an error but "both apps install fine and
+scans find nothing". So `rename.sh` sets the identity and `pack.sh` verifies
+it, the same split as `keystore.sh` creating the key and `pack.sh` checking
+that all three certificates match.
 
 The reason this is a script and not a find-and-replace is item 5 below - it is
 the one that compiles perfectly and then throws `UnsatisfiedLinkError` at

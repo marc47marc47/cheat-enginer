@@ -1,0 +1,636 @@
+<title>APK 裡有什麼</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap">
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+
+  :root {
+    --ground:      #EFF1F6;
+    --surface:     #FFFFFF;
+    --surface-2:   #E4E7EF;
+    --ink:         #14171F;
+    --ink-2:       #434A5C;
+    --ink-3:       #6F7789;
+    --line:        #D0D5E1;
+    --line-soft:   #E2E6EF;
+
+    --tool:        #0E6E7E;   /* 工具程式 */
+    --tool-soft:   #D6ECEF;
+    --file:        #9A620A;   /* APK 裡的檔案 */
+    --file-soft:   #F6E7CA;
+    --sign:        #B8392C;   /* 簽章 */
+    --sign-soft:   #F8DEDA;
+
+    --diagram-bg:  #F8FAFD;
+    --code-bg:     #EAEDF4;
+
+    --measure: 34rem;
+    --wide: 62rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0D0F15;
+      --surface:     #161A22;
+      --surface-2:   #1D222C;
+      --ink:         #E9EBF1;
+      --ink-2:       #A9B1C3;
+      --ink-3:       #798194;
+      --line:        #2A303D;
+      --line-soft:   #222833;
+      --tool:        #63D2E0;
+      --tool-soft:   #10353D;
+      --file:        #E5AE59;
+      --file-soft:   #382A11;
+      --sign:        #F07A6C;
+      --sign-soft:   #3A1D19;
+      --diagram-bg:  #11141B;
+      --code-bg:     #1A1F29;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #0D0F15;
+    --surface:     #161A22;
+    --surface-2:   #1D222C;
+    --ink:         #E9EBF1;
+    --ink-2:       #A9B1C3;
+    --ink-3:       #798194;
+    --line:        #2A303D;
+    --line-soft:   #222833;
+    --tool:        #63D2E0;
+    --tool-soft:   #10353D;
+    --file:        #E5AE59;
+    --file-soft:   #382A11;
+    --sign:        #F07A6C;
+    --sign-soft:   #3A1D19;
+    --diagram-bg:  #11141B;
+    --code-bg:     #1A1F29;
+  }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Noto Sans TC", -apple-system, "Segoe UI", system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
+  }
+  code, .mono { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; }
+
+  .page { max-width: var(--wide); margin: 0 auto; padding: 0 1.5rem 6rem; }
+  .prose { max-width: var(--measure); }
+
+  header.masthead {
+    border-bottom: 1px solid var(--line);
+    padding: 3.5rem 0 2.25rem;
+    margin-bottom: 3rem;
+  }
+  .eyebrow {
+    font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink-3); font-weight: 500; margin: 0 0 1rem;
+  }
+  h1 {
+    font-family: "Noto Serif TC", Georgia, serif; font-weight: 700;
+    font-size: clamp(2.4rem, 6vw, 3.6rem); line-height: 1.15;
+    letter-spacing: -0.01em; margin: 0 0 1.25rem; text-wrap: balance;
+  }
+  .standfirst { font-size: 1.08rem; color: var(--ink-2); max-width: var(--measure); margin: 0 0 2rem; }
+  .meta-strip {
+    display: flex; flex-wrap: wrap; gap: 0 2rem; font-size: 0.78rem; color: var(--ink-3);
+    border-top: 1px solid var(--line-soft); padding-top: 1rem;
+  }
+  .meta-strip b { color: var(--ink-2); font-weight: 500; }
+
+  h2 {
+    font-family: "Noto Serif TC", Georgia, serif; font-weight: 700;
+    font-size: 1.75rem; letter-spacing: -0.005em; margin: 0 0 0.5rem; text-wrap: balance;
+  }
+  h3 { font-size: 1.02rem; font-weight: 700; margin: 2.5rem 0 0.5rem; color: var(--ink); }
+  section { margin-bottom: 4.5rem; }
+  .sec-head { display: flex; align-items: baseline; gap: 0.9rem; margin-bottom: 1.5rem; }
+  .sec-num {
+    font-family: "JetBrains Mono", monospace; font-size: 0.78rem; color: var(--tool);
+    font-weight: 500; padding-top: 0.35rem; flex: none;
+  }
+  p { margin: 0 0 1.1rem; }
+  .prose p:last-child { margin-bottom: 0; }
+  a { color: var(--tool); }
+
+  figure {
+    margin: 2rem 0 1.25rem; background: var(--diagram-bg);
+    border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+  }
+  .fig-scroll { overflow-x: auto; padding: 1.25rem; }
+  figure svg { display: block; min-width: 720px; width: 100%; height: auto; }
+  figcaption {
+    border-top: 1px solid var(--line-soft); padding: 0.75rem 1.25rem 0.9rem;
+    font-size: 0.8rem; color: var(--ink-3); line-height: 1.65;
+  }
+  figcaption b { color: var(--ink-2); font-weight: 500; }
+
+  .chip {
+    display: inline-block; font-family: "JetBrains Mono", monospace; font-size: 0.78em;
+    padding: 0.05em 0.42em; border-radius: 3px; background: var(--code-bg);
+    color: var(--ink-2); white-space: nowrap;
+  }
+  .chip.t { background: var(--tool-soft); color: var(--tool); }
+  .chip.f { background: var(--file-soft); color: var(--file); }
+  .chip.s { background: var(--sign-soft); color: var(--sign); }
+
+  /* 檔案清單：不是卡片，是有色標的定義列 */
+  dl.files { margin: 1.75rem 0 0; border-top: 1px solid var(--line); }
+  dl.files > div {
+    display: grid; grid-template-columns: 15rem 1fr; gap: 0 1.75rem;
+    padding: 0.85rem 0; border-bottom: 1px solid var(--line-soft); align-items: start;
+  }
+  dl.files dt { font-family: "JetBrains Mono", monospace; font-size: 0.82rem; line-height: 1.6; word-break: break-word; }
+  dl.files dt .req {
+    display: inline-block; font-family: "Noto Sans TC", sans-serif; font-size: 0.62rem;
+    letter-spacing: 0.08em; padding: 0.05em 0.45em; border-radius: 3px; margin-left: 0.4rem;
+    vertical-align: middle; font-weight: 500;
+  }
+  .req.must { background: var(--sign-soft); color: var(--sign); }
+  .req.opt  { background: var(--code-bg); color: var(--ink-3); }
+  dl.files dt .role {
+    display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 0.5rem;
+    vertical-align: middle;
+  }
+  dl.files dd { margin: 0; font-size: 0.9rem; color: var(--ink-2); }
+  dl.files dd .sz { color: var(--ink-3); font-family: "JetBrains Mono", monospace; font-size: 0.8rem; }
+  @media (max-width: 640px) { dl.files > div { grid-template-columns: 1fr; gap: 0.3rem; } }
+
+  .callout {
+    border-left: 3px solid var(--tool); background: var(--surface);
+    padding: 1.1rem 1.35rem; margin: 1.75rem 0; max-width: var(--measure); font-size: 0.95rem;
+  }
+  .callout.sign { border-left-color: var(--sign); }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .lbl {
+    display: block; font-size: 0.68rem; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--ink-3); margin-bottom: 0.4rem;
+  }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 1.25rem; font-size: 0.78rem; color: var(--ink-3); margin: 1.5rem 0 0.25rem; }
+  .legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+  ul.plain { list-style: none; padding: 0; margin: 1.25rem 0; max-width: var(--measure); }
+  ul.plain li { position: relative; padding-left: 1.15rem; margin-bottom: 0.6rem; font-size: 0.95rem; }
+  ul.plain li::before {
+    content: ""; position: absolute; left: 0; top: 0.72em; width: 5px; height: 5px;
+    border-radius: 50%; background: var(--ink-3);
+  }
+
+  .anim-toggle {
+    font: inherit; font-size: 0.75rem; font-family: "JetBrains Mono", monospace;
+    background: var(--surface); color: var(--ink-2); border: 1px solid var(--line);
+    border-radius: 999px; padding: 0.3rem 0.9rem; cursor: pointer;
+  }
+  .anim-toggle:hover { border-color: var(--tool); color: var(--tool); }
+  .anim-toggle:focus-visible { outline: 2px solid var(--tool); outline-offset: 2px; }
+
+  footer.colophon {
+    border-top: 1px solid var(--line); padding-top: 1.5rem; font-size: 0.8rem;
+    color: var(--ink-3); max-width: var(--measure);
+  }
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <p class="eyebrow">cheat-enginer for Android · APK 剖析</p>
+    <h1>APK 裡有什麼</h1>
+    <p class="standfirst">
+      一支 APK 說到底就是一個改了副檔名的 ZIP。它必須裝著哪些檔案、每個檔案是誰、
+      又是被哪一隻工具在打包流程的哪一步放進去的 —— 這裡用 SVG + SMIL 動畫拆開來看。
+      所有數字都取自本專案實際建出的 <span class="mono">cheat-engine-v0.3.1.apk</span>，非示意值。
+    </p>
+    <div class="meta-strip">
+      <span><b>樣本</b> cheat-engine-v0.3.1.apk · 2.85 MB</span>
+      <span><b>ABI</b> arm64-v8a / armeabi-v7a / x86_64</span>
+      <span><b>簽章</b> APK Signature Scheme v2</span>
+      <span style="margin-left:auto"><button class="anim-toggle" id="animToggle" type="button">⏸ 暫停動畫</button></span>
+    </div>
+  </header>
+
+  <!-- ===================================================== 0. APK 是 ZIP -->
+  <section>
+    <div class="sec-head"><span class="sec-num">00</span><h2>APK 就是一個 ZIP</h2></div>
+    <div class="prose">
+      <p>
+        把 <span class="chip">.apk</span> 改成 <span class="chip">.zip</span> 解開，就能看到它的全部內容。
+        裡面沒有魔法，只有一組約定好的檔案。有些是<strong>系統安裝時非要不可</strong>的，
+        沒有就裝不起來；有些是選配的。下面這張是本專案 APK 解開後的真實結構。
+      </p>
+    </div>
+
+    <p class="legend">
+      <span><i style="background:var(--file)"></i> 內容檔（程式、資源、原生庫）</span>
+      <span><i style="background:var(--sign)"></i> 簽章相關</span>
+      <span><i style="background:var(--ink-3)"></i> 中繼資料</span>
+    </p>
+
+    <figure>
+      <div class="fig-scroll">
+        <svg viewBox="0 0 980 340" role="img" aria-label="APK 解開後的檔案結構樹，逐項淡入">
+          <g font-family="'Noto Sans TC', sans-serif">
+            <!-- 外框：APK -->
+            <rect x="24" y="24" width="932" height="292" rx="12" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="44" y="52" font-size="13" font-weight="700" fill="var(--ink)" font-family="'JetBrains Mono', monospace">cheat-engine-v0.3.1.apk</text>
+            <text x="290" y="52" font-size="11" fill="var(--ink-3)">（就是一個 ZIP）</text>
+            <line x1="44" y1="64" x2="936" y2="64" stroke="var(--line-soft)"/>
+
+            <!-- 逐項：每一列一個 animate 讓它依序淡入 -->
+            <g font-family="'JetBrains Mono', monospace" font-size="12">
+              <!-- AndroidManifest -->
+              <g opacity="0"><animate attributeName="opacity" begin="0.2s" dur="0.4s" fill="freeze" values="0;1"/>
+                <rect x="60" y="80" width="8" height="8" fill="var(--file)"/>
+                <text x="80" y="89" fill="var(--ink)">AndroidManifest.xml</text>
+                <text x="360" y="89" fill="var(--ink-3)">身分申報（二進位）</text>
+                <text x="800" y="89" fill="var(--sign)" font-size="10">必須</text>
+                <text x="870" y="89" fill="var(--ink-3)" text-anchor="end">3.7 KB</text>
+              </g>
+              <!-- dex -->
+              <g opacity="0"><animate attributeName="opacity" begin="0.55s" dur="0.4s" fill="freeze" values="0;1"/>
+                <rect x="60" y="104" width="8" height="8" fill="var(--file)"/>
+                <text x="80" y="113" fill="var(--ink)">classes.dex  classes2  classes3</text>
+                <text x="360" y="113" fill="var(--ink-3)">你的 Java 程式碼</text>
+                <text x="800" y="113" fill="var(--sign)" font-size="10">必須</text>
+                <text x="870" y="113" fill="var(--ink-3)" text-anchor="end">65 KB</text>
+              </g>
+              <!-- resources.arsc -->
+              <g opacity="0"><animate attributeName="opacity" begin="0.9s" dur="0.4s" fill="freeze" values="0;1"/>
+                <rect x="60" y="128" width="8" height="8" fill="var(--file)"/>
+                <text x="80" y="137" fill="var(--ink)">resources.arsc</text>
+                <text x="360" y="137" fill="var(--ink-3)">編譯過的資源索引表</text>
+                <text x="800" y="137" fill="var(--ink-3)" font-size="10">視情況</text>
+                <text x="870" y="137" fill="var(--ink-3)" text-anchor="end">40 B</text>
+              </g>
+              <!-- lib -->
+              <g opacity="0"><animate attributeName="opacity" begin="1.25s" dur="0.4s" fill="freeze" values="0;1"/>
+                <rect x="60" y="152" width="8" height="8" fill="var(--file)"/>
+                <text x="80" y="161" fill="var(--ink)">lib/&lt;abi&gt;/libce_engine.so</text>
+                <text x="360" y="161" fill="var(--ink-3)">Rust 引擎，每個 ABI 一份</text>
+                <text x="800" y="161" fill="var(--ink-3)" font-size="10">本專案有</text>
+                <text x="870" y="161" fill="var(--file)" text-anchor="end" font-weight="500">2.78 MB</text>
+              </g>
+              <g opacity="0" font-size="10.5" fill="var(--ink-3)"><animate attributeName="opacity" begin="1.45s" dur="0.4s" fill="freeze" values="0;1"/>
+                <text x="96" y="179">├ arm64-v8a　　1.04 MB</text>
+                <text x="300" y="179">├ armeabi-v7a　761 KB</text>
+                <text x="500" y="179">└ x86_64　　　 1021 KB</text>
+              </g>
+              <!-- META-INF / metadata -->
+              <g opacity="0"><animate attributeName="opacity" begin="1.8s" dur="0.4s" fill="freeze" values="0;1"/>
+                <rect x="60" y="200" width="8" height="8" fill="var(--ink-3)"/>
+                <text x="80" y="209" fill="var(--ink)">META-INF/…/app-metadata.properties</text>
+                <text x="360" y="209" fill="var(--ink-3)">建置中繼資料</text>
+                <text x="800" y="209" fill="var(--ink-3)" font-size="10">自動</text>
+                <text x="870" y="209" fill="var(--ink-3)" text-anchor="end">56 B</text>
+              </g>
+              <!-- signing block -->
+              <g opacity="0"><animate attributeName="opacity" begin="2.15s" dur="0.4s" fill="freeze" values="0;1"/>
+                <rect x="60" y="224" width="8" height="8" fill="var(--sign)"/>
+                <text x="80" y="233" fill="var(--ink)">APK Signing Block</text>
+                <text x="360" y="233" fill="var(--ink-3)">v2 簽章，不是一個檔（見下）</text>
+                <text x="800" y="233" fill="var(--sign)" font-size="10">必須</text>
+                <text x="870" y="233" fill="var(--ink-3)" text-anchor="end">—</text>
+              </g>
+            </g>
+
+            <!-- 底部：欄位標題（先出現） -->
+            <g font-size="9.5" fill="var(--ink-3)" letter-spacing="1">
+              <text x="80" y="272" opacity="0"><animate attributeName="opacity" begin="2.4s" dur="0.4s" fill="freeze" values="0;1"/>97.6% 的體積是那三個 .so —— 這支 APK 幾乎就是「一包原生庫」</text>
+            </g>
+            <!-- 體積長條 -->
+            <g opacity="0"><animate attributeName="opacity" begin="2.4s" dur="0.5s" fill="freeze" values="0;1"/>
+              <rect x="80" y="284" width="820" height="14" rx="3" fill="var(--surface-2)"/>
+              <rect x="80" y="284" width="0" height="14" rx="3" fill="var(--file)">
+                <animate attributeName="width" begin="2.5s" dur="0.9s" fill="freeze" values="0;800" calcMode="spline" keySplines="0.2 0 0 1"/>
+              </rect>
+              <rect x="882" y="284" width="18" height="14" rx="3" fill="var(--tool)"/>
+              <text x="908" y="295" font-size="9" fill="var(--ink-3)">其他</text>
+            </g>
+          </g>
+        </svg>
+      </div>
+      <figcaption>
+        <b>幾乎全是原生庫。</b> 這支 APK 的 <span class="chip">resources.arsc</span> 只有 40 bytes —— 因為它整個 UI
+        都是程式化的 framework View、<em>零 XML 資源</em>，所以資源表幾乎是空的。體積壓倒性地由三個
+        <span class="chip">libce_engine.so</span>（三個 ABI）構成。換一支帶大量圖檔與版面的 App，
+        <span class="chip">res/</span> 與 <span class="chip">resources.arsc</span> 就會佔掉大半。
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ===================================================== 1. 打包流程 -->
+  <section>
+    <div class="sec-head"><span class="sec-num">01</span><h2>打包流程：原始碼怎麼變成這些檔案</h2></div>
+    <div class="prose">
+      <p>
+        上面每一個檔案，都是打包流程中某一隻工具的產物。左邊是你寫的原始碼（三種），
+        中間是各自的編譯工具，它們產出的東西在右邊被打包、對齊、簽章，最後成為一支 APK。
+        <span class="chip">gradle</span> 只是總指揮，真正動手的是底下這幾隻。
+      </p>
+    </div>
+
+    <p class="legend">
+      <span><i style="background:var(--tool)"></i> 工具程式</span>
+      <span><i style="background:var(--file)"></i> 中間產物 / APK 內的檔案</span>
+      <span><i style="background:var(--sign)"></i> 對齊與簽章</span>
+    </p>
+
+    <figure>
+      <div class="fig-scroll">
+        <svg viewBox="0 0 980 560" role="img" aria-label="從原始碼經各工具到 APK 的打包流程動畫">
+          <g font-family="'Noto Sans TC', sans-serif">
+
+            <!-- 欄標 -->
+            <g font-size="10.5" fill="var(--ink-3)" letter-spacing="1.4" font-family="'JetBrains Mono', monospace">
+              <text x="24" y="24">原始碼</text>
+              <text x="300" y="24">編譯工具</text>
+              <text x="560" y="24">中間產物</text>
+              <text x="800" y="24">封裝</text>
+            </g>
+
+            <!-- ── 三條車道：原始碼 → 工具 → 產物 ── -->
+
+            <!-- Rust 車道 -->
+            <rect x="24" y="44" width="150" height="60" rx="8" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="40" y="70" font-size="12" font-weight="700" fill="var(--ink)">Rust</text>
+            <text x="40" y="88" font-size="10" font-family="'JetBrains Mono', monospace" fill="var(--ink-3)">src/**.rs</text>
+
+            <rect x="300" y="44" width="176" height="60" rx="8" fill="var(--surface)" stroke="var(--tool)"/>
+            <text x="316" y="66" font-size="12" font-weight="700" fill="var(--tool)" font-family="'JetBrains Mono', monospace">cargo-ndk</text>
+            <text x="316" y="83" font-size="9.5" fill="var(--ink-3)">→ rustc → NDK clang/lld</text>
+            <text x="316" y="97" font-size="9.5" fill="var(--ink-3)">交叉編譯三個 ABI</text>
+
+            <rect x="560" y="44" width="196" height="60" rx="8" fill="var(--file-soft)"/>
+            <text x="576" y="70" font-size="11.5" font-weight="700" fill="var(--file)" font-family="'JetBrains Mono', monospace">lib/&lt;abi&gt;/*.so</text>
+            <text x="576" y="88" font-size="9.5" fill="var(--ink-3)">libce_engine.so ×3</text>
+
+            <!-- Java 車道 -->
+            <rect x="24" y="124" width="150" height="60" rx="8" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="40" y="150" font-size="12" font-weight="700" fill="var(--ink)">Java</text>
+            <text x="40" y="168" font-size="10" font-family="'JetBrains Mono', monospace" fill="var(--ink-3)">**/*.java</text>
+
+            <rect x="300" y="114" width="176" height="40" rx="8" fill="var(--surface)" stroke="var(--tool)"/>
+            <text x="316" y="139" font-size="12" font-weight="700" fill="var(--tool)" font-family="'JetBrains Mono', monospace">javac</text>
+            <text x="404" y="139" font-size="9" fill="var(--ink-3)">+android.jar</text>
+
+            <rect x="300" y="164" width="176" height="40" rx="8" fill="var(--surface)" stroke="var(--tool)"/>
+            <text x="316" y="189" font-size="12" font-weight="700" fill="var(--tool)" font-family="'JetBrains Mono', monospace">d8 / r8</text>
+            <text x="392" y="189" font-size="9" fill="var(--ink-3)">.class → dex</text>
+
+            <rect x="560" y="124" width="196" height="60" rx="8" fill="var(--file-soft)"/>
+            <text x="576" y="150" font-size="11.5" font-weight="700" fill="var(--file)" font-family="'JetBrains Mono', monospace">classes*.dex</text>
+            <text x="576" y="168" font-size="9.5" fill="var(--ink-3)">你的程式碼</text>
+
+            <!-- 資源車道 -->
+            <rect x="24" y="204" width="150" height="70" rx="8" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="40" y="230" font-size="12" font-weight="700" fill="var(--ink)">Manifest ＋ res</text>
+            <text x="40" y="248" font-size="9.5" font-family="'JetBrains Mono', monospace" fill="var(--ink-3)">AndroidManifest</text>
+            <text x="40" y="262" font-size="9.5" font-family="'JetBrains Mono', monospace" fill="var(--ink-3)">.xml · res/**</text>
+
+            <rect x="300" y="214" width="176" height="50" rx="8" fill="var(--surface)" stroke="var(--tool)"/>
+            <text x="316" y="238" font-size="12" font-weight="700" fill="var(--tool)" font-family="'JetBrains Mono', monospace">aapt2</text>
+            <text x="316" y="255" font-size="9" fill="var(--ink-3)">compile → link</text>
+
+            <rect x="560" y="204" width="196" height="70" rx="8" fill="var(--file-soft)"/>
+            <text x="576" y="228" font-size="11" font-weight="700" fill="var(--file)" font-family="'JetBrains Mono', monospace">AndroidManifest.xml</text>
+            <text x="576" y="244" font-size="9.5" fill="var(--ink-3)">（二進位）＋</text>
+            <text x="576" y="262" font-size="11" font-weight="700" fill="var(--file)" font-family="'JetBrains Mono', monospace">resources.arsc</text>
+
+            <!-- 連線：原始碼→工具→產物 -->
+            <g fill="none" stroke="var(--line)" stroke-width="1.5">
+              <path d="M174,74 L300,74"/>
+              <path d="M476,74 L560,74"/>
+              <path d="M174,154 L300,134"/>
+              <path d="M388,154 L388,164"/>
+              <path d="M476,184 L560,154"/>
+              <path d="M174,239 L300,239"/>
+              <path d="M476,239 L560,239"/>
+            </g>
+
+            <!-- ── 匯流到 zipflinger ── -->
+            <g fill="none" stroke="var(--line)" stroke-width="1.5">
+              <path d="M756,74  C800,74  800,300 830,300"/>
+              <path d="M756,154 C800,154 800,300 830,300"/>
+              <path d="M756,239 C800,239 800,300 830,300"/>
+            </g>
+
+            <rect x="830" y="276" width="126" height="48" rx="8" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="893" y="298" font-size="11" font-weight="700" fill="var(--tool)" text-anchor="middle" font-family="'JetBrains Mono', monospace">zipflinger</text>
+            <text x="893" y="314" font-size="9" fill="var(--ink-3)" text-anchor="middle">組成 zip（AGP 內建）</text>
+
+            <!-- 往下：對齊 → 簽章 -->
+            <path d="M893,324 L893,352" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+            <path d="M887,344 L893,354 L899,344 Z" fill="var(--line)"/>
+
+            <rect x="784" y="356" width="172" height="44" rx="8" fill="var(--surface)" stroke="var(--sign)"/>
+            <text x="800" y="380" font-size="12" font-weight="700" fill="var(--sign)" font-family="'JetBrains Mono', monospace">zipalign</text>
+            <text x="884" y="380" font-size="9" fill="var(--ink-3)">16 KB page 對齊</text>
+
+            <path d="M870,400 L870,424" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+            <path d="M864,416 L870,426 L876,416 Z" fill="var(--line)"/>
+
+            <rect x="784" y="428" width="172" height="44" rx="8" fill="var(--surface)" stroke="var(--sign)"/>
+            <text x="800" y="452" font-size="12" font-weight="700" fill="var(--sign)" font-family="'JetBrains Mono', monospace">apksigner</text>
+            <text x="884" y="452" font-size="9" fill="var(--ink-3)">v2 簽章</text>
+
+            <path d="M870,472 L870,496" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+            <path d="M864,488 L870,498 L876,488 Z" fill="var(--line)"/>
+
+            <rect x="760" y="500" width="196" height="46" rx="8" fill="var(--file)"/>
+            <text x="858" y="528" font-size="13" font-weight="700" fill="var(--ground)" text-anchor="middle" font-family="'JetBrains Mono', monospace">cheat-engine.apk</text>
+
+            <!-- 左下角：金鑰進 apksigner -->
+            <rect x="560" y="428" width="150" height="44" rx="8" fill="var(--surface)" stroke="var(--line)" stroke-dasharray="4 3"/>
+            <text x="576" y="450" font-size="11" font-weight="700" fill="var(--ink-2)">signing key</text>
+            <text x="576" y="465" font-size="9" fill="var(--ink-3)">debug / signing.properties</text>
+            <path d="M710,450 L784,450" fill="none" stroke="var(--sign)" stroke-width="1.5" stroke-dasharray="4 3"/>
+
+            <!-- ── SMIL：三條車道的封包，一輪動畫 8s ── -->
+            <!-- Rust 封包 -->
+            <circle r="5" fill="var(--file)">
+              <animateMotion dur="8s" repeatCount="indefinite" calcMode="linear"
+                keyPoints="0;0;1;1" keyTimes="0;0.04;0.30;1"
+                path="M174,74 L300,74 L476,74 L560,74 L756,74 C800,74 800,300 830,300"/>
+              <animate attributeName="opacity" dur="8s" repeatCount="indefinite"
+                values="0;1;1;0;0" keyTimes="0;0.04;0.29;0.31;1"/>
+            </circle>
+            <!-- Java 封包 -->
+            <circle r="5" fill="var(--file)">
+              <animateMotion dur="8s" repeatCount="indefinite" calcMode="linear"
+                keyPoints="0;0;1;1" keyTimes="0;0.10;0.36;1"
+                path="M174,154 L300,134 L388,134 L388,184 L476,184 L560,154 L756,154 C800,154 800,300 830,300"/>
+              <animate attributeName="opacity" dur="8s" repeatCount="indefinite"
+                values="0;0;1;1;0;0" keyTimes="0;0.09;0.10;0.35;0.37;1"/>
+            </circle>
+            <!-- 資源封包 -->
+            <circle r="5" fill="var(--file)">
+              <animateMotion dur="8s" repeatCount="indefinite" calcMode="linear"
+                keyPoints="0;0;1;1" keyTimes="0;0.16;0.42;1"
+                path="M174,239 L300,239 L476,239 L560,239 L756,239 C800,239 800,300 830,300"/>
+              <animate attributeName="opacity" dur="8s" repeatCount="indefinite"
+                values="0;0;1;1;0;0" keyTimes="0;0.15;0.16;0.41;0.43;1"/>
+            </circle>
+            <!-- 匯流後：zip→align→sign→apk -->
+            <circle r="5.5" fill="var(--sign)">
+              <animateMotion dur="8s" repeatCount="indefinite" calcMode="linear"
+                keyPoints="0;0;1;1" keyTimes="0;0.46;0.72;1"
+                path="M893,324 L893,356 L870,378 L870,428 L870,450 L870,500 L858,523"/>
+              <animate attributeName="opacity" dur="8s" repeatCount="indefinite"
+                values="0;0;1;1;0;0" keyTimes="0;0.45;0.46;0.71;0.73;1"/>
+            </circle>
+            <!-- 金鑰脈衝 -->
+            <circle r="4" fill="var(--sign)">
+              <animateMotion dur="8s" repeatCount="indefinite" calcMode="linear"
+                keyPoints="0;0;1;1" keyTimes="0;0.60;0.66;1" path="M710,450 L784,450"/>
+              <animate attributeName="opacity" dur="8s" repeatCount="indefinite"
+                values="0;0;1;1;0;0" keyTimes="0;0.59;0.60;0.65;0.67;1"/>
+            </circle>
+            <!-- APK 完成閃一下 -->
+            <rect x="760" y="500" width="196" height="46" rx="8" fill="none" stroke="var(--file)" stroke-width="2" opacity="0">
+              <animate attributeName="opacity" dur="8s" repeatCount="indefinite"
+                values="0;0;0.9;0;0" keyTimes="0;0.72;0.76;0.82;1"/>
+            </rect>
+
+          </g>
+        </svg>
+      </div>
+      <figcaption>
+        <b>三條車道匯成一支 APK。</b> Rust 走 <span class="chip">cargo-ndk</span>，Java 走
+        <span class="chip">javac</span> 再 <span class="chip">d8/r8</span>，Manifest 與資源走
+        <span class="chip">aapt2</span>。三邊的產物由 <span class="chip">zipflinger</span> 壓進同一個 zip，
+        <span class="chip">zipalign</span> 對齊後、<span class="chip">apksigner</span> 用金鑰簽章 —— 才成為能安裝的 APK。
+        <span class="chip">sharedUserId</span> 就是在 <span class="chip">aapt2 link</span> 那一步從原始 XML 編進二進位 manifest 的。
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ===================================================== 2. 檔案逐一 -->
+  <section>
+    <div class="sec-head"><span class="sec-num">02</span><h2>每個檔案是誰</h2></div>
+    <div class="prose">
+      <p>
+        「必須」是指系統安裝或執行時非它不可；沒有就裝不起來、或裝起來也跑不動。
+        「視情況」與「選配」則看 App 有沒有用到對應的東西。
+      </p>
+    </div>
+
+    <dl class="files">
+      <div>
+        <dt><span class="role" style="background:var(--file)"></span>AndroidManifest.xml <span class="req must">必須</span></dt>
+        <dd>App 的身分申報表，二進位格式。<span class="chip">package</span>、<span class="chip">sharedUserId</span>、
+          權限、四大元件全在這。系統<strong>安裝時就讀完</strong>，程式還沒跑就知道它能做什麼。 <span class="sz">3.7 KB</span></dd>
+      </div>
+      <div>
+        <dt><span class="role" style="background:var(--file)"></span>classes.dex<br>classes2.dex … <span class="req must">必須</span></dt>
+        <dd>你的 Java/Kotlin 程式碼，編成 Dalvik bytecode。一個 dex 有方法數上限（65536），
+          超過就拆成 <span class="chip">classes2</span>、<span class="chip">classes3</span>…（本專案就有三個）。 <span class="sz">合計 65 KB</span></dd>
+      </div>
+      <div>
+        <dt><span class="role" style="background:var(--file)"></span>resources.arsc <span class="req opt">視情況</span></dt>
+        <dd>編譯過的<strong>資源索引表</strong> —— 字串、顏色、版面、drawable 的 id 對應。
+          本專案全用程式化 View，所以它只有 <span class="chip">40 B</span>，近乎空的。 <span class="sz">40 B</span></dd>
+      </div>
+      <div>
+        <dt><span class="role" style="background:var(--file)"></span>res/** <span class="req opt">選配</span></dt>
+        <dd>圖檔、XML 版面、<span class="chip">values/</span> 等資源本體。本專案<strong>沒有這個資料夾</strong>，
+          因為 UI 完全是 framework View 手寫的。一般 App 這裡通常很大。 <span class="sz">（本專案無）</span></dd>
+      </div>
+      <div>
+        <dt><span class="role" style="background:var(--file)"></span>lib/&lt;abi&gt;/*.so <span class="req opt">選配</span></dt>
+        <dd>原生共享庫，<strong>每個 CPU 架構一份</strong>。本專案是 Rust 編出的
+          <span class="chip">libce_engine.so</span>，三個 ABI —— 也是整支 APK 體積的來源（97.6%）。
+          純 Java App 沒有這層。 <span class="sz">2.78 MB</span></dd>
+      </div>
+      <div>
+        <dt><span class="role" style="background:var(--file)"></span>assets/** <span class="req opt">選配</span></dt>
+        <dd>原封不動打包的任意檔案（字型、資料檔、網頁…），程式用 <span class="chip">AssetManager</span> 讀。
+          不經 <span class="chip">aapt2</span> 編譯，放什麼是什麼。本專案沒用到。 <span class="sz">（本專案無）</span></dd>
+      </div>
+      <div>
+        <dt><span class="role" style="background:var(--sign)"></span>APK Signing Block <span class="req must">必須</span></dt>
+        <dd>v2 以後的簽章<strong>不是一個檔</strong>，而是夾在 zip 內容與中央目錄之間的一段資料，
+          對整包做雜湊。API 24+ 一律要求；未簽章的 APK 裝不上去。 <span class="sz">v2 scheme</span></dd>
+      </div>
+      <div>
+        <dt><span class="role" style="background:var(--ink-3)"></span>META-INF/** <span class="req opt">自動</span></dt>
+        <dd>建置中繼資料（<span class="chip">app-metadata.properties</span>）。<em>舊的</em> v1(JAR)簽章會在這裡放
+          <span class="chip">MANIFEST.MF</span> / <span class="chip">*.SF</span> / <span class="chip">*.RSA</span>，
+          但本專案只用 v2，所以這裡沒有簽章檔。 <span class="sz">56 B</span></dd>
+      </div>
+    </dl>
+
+    <div class="callout sign">
+      <span class="lbl">兩個看不見卻關鍵的東西</span>
+      <p>
+        <strong>① Manifest 是二進位的。</strong> 你在 APK 裡看到的 <span class="chip">AndroidManifest.xml</span> 不是文字，
+        要用 <span class="chip">aapt dump xmltree</span> 或 <span class="chip">apktool</span> 才讀得回文字。
+        <br><br>
+        <strong>② v2 簽章不佔一個檔案格。</strong> 它是 zip 結構裡的一段特殊區塊，所以你解開 APK 在檔案清單裡
+        找不到它 —— 但少了它，<span class="chip s">系統直接拒裝</span>。
+      </p>
+    </div>
+  </section>
+
+  <!-- ===================================================== 3. 最小 APK -->
+  <section>
+    <div class="sec-head"><span class="sec-num">03</span><h2>一支 APK 至少要有什麼</h2></div>
+    <div class="prose">
+      <p>剝到最小，能安裝並執行的 APK 只需要三樣，加上一個外部條件：</p>
+      <ul class="plain">
+        <li><span class="chip f">AndroidManifest.xml</span> —— 沒有身分申報，系統不知道這是什麼，直接拒裝。</li>
+        <li><span class="chip f">classes.dex</span> —— 沒有程式碼就沒有能跑的東西（純資源包例外，但那不是可執行 App）。</li>
+        <li><span class="chip s">APK Signing Block</span> —— 未簽章一律裝不上，API 24+ 強制。</li>
+        <li><strong>外部條件：</strong>要能被啟動，Manifest 裡得有一個帶
+          <span class="chip">LAUNCHER</span> intent-filter 的 <span class="chip">&lt;activity&gt;</span> ——
+          否則裝得起來卻沒有桌面圖示。</li>
+      </ul>
+      <p>
+        其餘全是選配：沒有原生程式碼就沒有 <span class="chip">lib/</span>，沒有 XML 資源
+        <span class="chip">resources.arsc</span> 就近乎空、也沒有 <span class="chip">res/</span> —— 本專案正是這個樣子。
+      </p>
+    </div>
+  </section>
+
+  <footer class="colophon">
+    <p>
+      所有檔名、位元組數與比例取自本專案實際建出的 <span class="mono">cheat-engine-v0.3.1.apk</span>
+      （2,984,847 bytes，v2 簽章，三 ABI），以 <span class="mono">unzip -l</span> 與
+      <span class="mono">apksigner verify</span> 讀出，非示意值。打包工具鏈：cargo-ndk / aapt2 / javac / d8 / r8 /
+      zipflinger / zipalign / apksigner，由 <span class="mono">gradle</span> 經 AGP 8.7.3 統籌，
+      <span class="mono">android/pack.sh</span> 觸發並驗證。所有動畫為 SVG + SMIL，不依賴任何函式庫。
+      姊妹文件：<span class="mono">architecture.html</span>（共用行程架構）。
+    </p>
+  </footer>
+
+</div>
+
+<script>
+  (function () {
+    var btn = document.getElementById('animToggle');
+    var svgs = Array.prototype.slice.call(document.querySelectorAll('svg'));
+    var paused = false;
+    function apply() {
+      svgs.forEach(function (s) {
+        if (typeof s.pauseAnimations !== 'function') return;
+        if (paused) { s.pauseAnimations(); } else { s.unpauseAnimations(); }
+      });
+      btn.textContent = paused ? '▶ 播放動畫' : '⏸ 暫停動畫';
+      btn.setAttribute('aria-pressed', String(paused));
+    }
+    try {
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        paused = true;
+      }
+    } catch (e) {}
+    apply();
+    btn.addEventListener('click', function () { paused = !paused; apply(); });
+  })();
+</script>

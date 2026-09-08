@@ -19,11 +19,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- API 30+ package visibility, so getLaunchIntentForPackage can see it. -->
-    <queries>
-        <package android:name="dev.marc.ce.game" />
-    </queries>
-
     <application
         android:allowBackup="false"
         android:label="Cheat Engine"

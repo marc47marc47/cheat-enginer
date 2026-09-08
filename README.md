@@ -115,6 +115,7 @@ cheat-enginer.exe
 ## Downloads
 
 Pre-built Windows binaries are available on the [Releases](https://github.com/marc47marc47/cheat-enginer/releases) page.
+download bundletool with tool: wget https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
 
 ## Dependencies
 
