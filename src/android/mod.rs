@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 use jni::JNIEnv;
 use jni::objects::{JClass, JLongArray, JObject, JString};
-use jni::sys::{jboolean, jint, jlong};
+use jni::sys::{jboolean, jdouble, jint, jlong};
 
 use crate::scan::scanner::ScanLimits;
 use crate::scan::value_type::{ScanType, ScanValue, ValueType};
@@ -169,6 +169,41 @@ pub extern "system" fn Java_dev_marc_ce_overlay_NativeBridge_nativeSelfPid(
     _class: JClass,
 ) -> jint {
     guard(0, || std::process::id() as jint)
+}
+
+// -- speedhack ----------------------------------------------------------
+//
+// Process-global, not session-bound: the hook lives in the target's own
+// address space and there is one of it. Install lazily on first use so an app
+// that never touches Speed pays nothing.
+
+/// Install the clock hook (idempotent). Returns true if any hook point was
+/// patched — false on unsupported ABIs (armeabi-v7a) or if nothing matched.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_marc_ce_overlay_NativeBridge_nativeSpeedInstall(
+    _env: JNIEnv,
+    _class: JClass,
+) -> jboolean {
+    guard(0, || (crate::speedhack::install() > 0) as jboolean)
+}
+
+/// Set the speed multiplier. `1.0` is real time; clamped to `[0.1, 8]`.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_marc_ce_overlay_NativeBridge_nativeSpeedSet(
+    _env: JNIEnv,
+    _class: JClass,
+    factor: jdouble,
+) {
+    guard((), || crate::speedhack::set_factor(factor as f64));
+}
+
+/// The current speed multiplier.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_marc_ce_overlay_NativeBridge_nativeSpeedFactor(
+    _env: JNIEnv,
+    _class: JClass,
+) -> jdouble {
+    guard(1.0, || crate::speedhack::factor() as jdouble)
 }
 
 /// Take and clear the last error, or `null` when there is none.

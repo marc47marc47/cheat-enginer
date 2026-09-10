@@ -31,10 +31,16 @@ final class ChoiceStrip extends HorizontalScrollView {
     private static final int ACCENT = Color.argb(255, 120, 200, 140);
     private static final int OFF = Color.argb(255, 90, 96, 106);
 
+    /** Notified when the user taps a chip. */
+    interface OnSelect {
+        void onSelect(int index);
+    }
+
     private final LinearLayout row;
     private final int pad;
     private String[] items = new String[0];
     private int selected;
+    private OnSelect onSelect;
 
     ChoiceStrip(Context context, OverlayController controller) {
         super(context);
@@ -43,6 +49,14 @@ final class ChoiceStrip extends HorizontalScrollView {
         row = new LinearLayout(context);
         row.setOrientation(LinearLayout.HORIZONTAL);
         addView(row);
+    }
+
+    /**
+     * Fire a callback on tap. The Scan tab reads the selection on demand and
+     * needs none; the Speed tab acts immediately, so it sets one.
+     */
+    void setOnSelect(OnSelect listener) {
+        this.onSelect = listener;
     }
 
     void setItems(String[] values, int initial) {
@@ -59,6 +73,9 @@ final class ChoiceStrip extends HorizontalScrollView {
             chip.setOnClickListener(v -> {
                 if (isEnabled()) {
                     setSelection(index);
+                    if (onSelect != null) {
+                        onSelect.onSelect(index);
+                    }
                 }
             });
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(

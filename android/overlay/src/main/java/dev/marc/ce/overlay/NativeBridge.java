@@ -70,6 +70,19 @@ public final class NativeBridge {
 
     public static native byte[] nativeResultsPage(long handle, int offset, int count);
 
+    // -- speedhack ----------------------------------------------------------
+    // Process-global, not session-bound: the hook lives in the target's own
+    // address space. Install lazily on first use.
+
+    /** Install the clock hook. Returns false on unsupported ABIs (armeabi-v7a). */
+    public static native boolean nativeSpeedInstall();
+
+    /** Set the speed multiplier. 1.0 = real time; clamped to 0.1–8. */
+    public static native void nativeSpeedSet(double factor);
+
+    /** The current multiplier. */
+    public static native double nativeSpeedFactor();
+
     // -- memory -------------------------------------------------------------
 
     public static native byte[] nativeReadBytes(long handle, long address, int len);

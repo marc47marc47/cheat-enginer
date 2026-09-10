@@ -1,0 +1,24 @@
+# The injected Linux payload. Built separately from the engine (a runtime
+# artifact the scanner writes into a target, not a compile-time dependency).
+#
+#   cargo build --release   # from this dir -> target/release/libce_speedhook_linux.so
+#
+# Shares the exact SpeedClock source with the engine via a #[path] include, so
+# the shared-memory layout can never drift between the two.
+#
+# VERIFICATION STATUS: cargo-checked only; never run on a Linux device. See
+# android/TODO-speedup.md (B2).
+[package]
+name = "ce_speedhook_linux"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "ce_speedhook_linux"
+crate-type = ["cdylib"]
+
+[profile.release]
+panic = "abort"   # nothing may unwind out of an injected .so's hook
+
+[target.'cfg(all(unix, not(target_os = "android")))'.dependencies]
+libc = "0.2"

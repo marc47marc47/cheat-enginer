@@ -73,6 +73,12 @@ final class OverlayPanel extends LinearLayout {
     private EditText hexAddress;
     private TextView hexDump;
 
+    private ChoiceStrip speedChoice;
+    private TextView speedStatus;
+    private boolean speedInstalled;
+    private boolean speedUnsupported;
+    private ChoiceStrip speedRefresh;
+
     private final Runnable poll = new Runnable() {
         @Override
         public void run() {
@@ -111,6 +117,7 @@ final class OverlayPanel extends LinearLayout {
         addTab("Results", 1);
         addTab("Address", 2);
         addTab("Hex", 3);
+        addTab("Speed", 4);
 
         body = new LinearLayout(context);
         body.setOrientation(VERTICAL);
@@ -150,8 +157,11 @@ final class OverlayPanel extends LinearLayout {
             case 2:
                 body.addView(buildAddressTab());
                 break;
-            default:
+            case 3:
                 body.addView(buildHexTab());
+                break;
+            default:
+                body.addView(buildSpeedTab());
                 break;
         }
         refresh();
@@ -309,6 +319,143 @@ final class OverlayPanel extends LinearLayout {
         } catch (NumberFormatException e) {
             return 0;
         }
+    }
+
+    // -- tab 5: speed --------------------------------------------------------
+
+    /** Multipliers, parallel to the chip labels below. */
+    private static final double[] SPEED_FACTORS = {0.25, 0.5, 1.0, 2.0, 4.0};
+    /** Refresh-rate chips; 0 = Auto (system default). */
+    private static final float[] REFRESH_HZ = {0f, 30f, 60f, 90f, 120f};
+
+    private View buildSpeedTab() {
+        Context context = getContext();
+        LinearLayout root = column(context);
+
+        TextView title = label(context, "Game speed", FG);
+        title.setTextSize(15f);
+        title.setTypeface(null, Typeface.BOLD);
+        root.addView(title);
+
+        TextView blurb = label(context,
+                "Scales the monotonic clock the game reads — monster movement, attack "
+                        + "cadence, cooldowns and spawns all run faster or slower. "
+                        + "1x is normal.", DIM);
+        blurb.setTextSize(11f);
+        blurb.setPadding(0, 0, 0, controller.dp(8));
+        root.addView(blurb);
+
+        speedChoice = new ChoiceStrip(context, controller);
+        speedChoice.setItems(new String[]{"0.25x", "0.5x", "1x", "2x", "4x"}, currentSpeedIndex());
+        speedChoice.setOnSelect(this::applySpeed);
+        root.addView(speedChoice);
+
+        speedStatus = label(context, "", DIM);
+        speedStatus.setTextSize(11f);
+        speedStatus.setPadding(0, controller.dp(8), 0, 0);
+        root.addView(speedStatus);
+        updateSpeedStatus();
+
+        // -- experimental: unlock vsync-locked movement (android/TODO-vsync.md) --
+        TextView expTitle = label(context, "Unlock movement (experimental)", FG);
+        expTitle.setTextSize(12f);
+        expTitle.setTypeface(null, Typeface.BOLD);
+        expTitle.setPadding(0, controller.dp(14), 0, 0);
+        root.addView(expTitle);
+
+        final CheckBox pacing = new CheckBox(context);
+        pacing.setText("Frame pacing pulse (high CPU)");
+        pacing.setTextColor(FG);
+        pacing.setChecked(controller.isFramePacing());
+        pacing.setOnClickListener(v -> controller.setFramePacing(pacing.isChecked()));
+        root.addView(pacing);
+
+        TextView pacingBlurb = label(context,
+                "For games whose movement is a fixed step per frame (this demo is now "
+                        + "frame-rate-independent, so it doesn't need this): keeps the loop "
+                        + "awake so scaled steps aren't vsync-capped. Costs CPU; no effect at 1x.", DIM);
+        pacingBlurb.setTextSize(11f);
+        pacingBlurb.setPadding(0, 0, 0, controller.dp(10));
+        root.addView(pacingBlurb);
+
+        TextView refreshLabel = label(context, "Display refresh (best-effort)", DIM);
+        refreshLabel.setTextSize(11f);
+        root.addView(refreshLabel);
+
+        speedRefresh = new ChoiceStrip(context, controller);
+        speedRefresh.setItems(new String[]{"Auto", "30", "60", "90", "120"}, currentRefreshIndex());
+        speedRefresh.setOnSelect(this::applyRefresh);
+        root.addView(speedRefresh);
+
+        TextView refreshBlurb = label(context,
+                "Requests a display Hz; only takes effect if the panel supports that mode "
+                        + "(a single-mode emulator ignores it). Lower Hz slows motion.", DIM);
+        refreshBlurb.setTextSize(11f);
+        refreshBlurb.setPadding(0, controller.dp(4), 0, 0);
+        root.addView(refreshBlurb);
+
+        return root;
+    }
+
+    /** The refresh chip matching the controller's standing request (0 = Auto). */
+    private int currentRefreshIndex() {
+        float hz = controller.preferredRefreshRate();
+        for (int i = 0; i < REFRESH_HZ.length; i++) {
+            if (REFRESH_HZ[i] == hz) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    private void applyRefresh(int index) {
+        controller.setPreferredRefreshRate(REFRESH_HZ[index]);
+    }
+
+    /** The chip whose factor is nearest the engine's current one. */
+    private int currentSpeedIndex() {
+        double f = NativeBridge.nativeSpeedFactor();
+        int best = 2;
+        double bestErr = Double.MAX_VALUE;
+        for (int i = 0; i < SPEED_FACTORS.length; i++) {
+            double err = Math.abs(SPEED_FACTORS[i] - f);
+            if (err < bestErr) {
+                bestErr = err;
+                best = i;
+            }
+        }
+        return best;
+    }
+
+    private void applySpeed(int index) {
+        // Install lazily, on the first tap: an app that never touches Speed
+        // never patches a single GOT slot.
+        if (!speedInstalled && !speedUnsupported) {
+            speedInstalled = NativeBridge.nativeSpeedInstall();
+            speedUnsupported = !speedInstalled;
+        }
+        if (speedUnsupported) {
+            speedChoice.setSelection(2); // back to 1x
+            updateSpeedStatus();
+            return;
+        }
+        NativeBridge.nativeSpeedSet(SPEED_FACTORS[index]);
+        updateSpeedStatus();
+    }
+
+    private void updateSpeedStatus() {
+        if (speedStatus == null) {
+            return;
+        }
+        if (speedUnsupported) {
+            speedStatus.setText("not supported on this ABI (needs arm64-v8a / x86_64)");
+            speedStatus.setTextColor(WARN);
+            speedChoice.setEnabled(false);
+            return;
+        }
+        double f = NativeBridge.nativeSpeedFactor();
+        speedStatus.setText(String.format("now %.2fx", f));
+        speedStatus.setTextColor(f == 1.0 ? DIM : ACCENT);
     }
 
     // -- polling -------------------------------------------------------------

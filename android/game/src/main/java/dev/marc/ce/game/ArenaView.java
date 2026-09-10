@@ -5,6 +5,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.os.SystemClock;
 import android.view.MotionEvent;
 import android.view.View;
 
@@ -41,6 +42,8 @@ final class ArenaView extends View {
     private float x, y, vx, vy, radius;
     private float flash;
     private boolean running;
+    /** Scaled uptime of the previous step, for frame-rate-independent movement. */
+    private long lastStepUptime;
 
     private final Runnable frame = new Runnable() {
         @Override
@@ -70,6 +73,7 @@ final class ArenaView extends View {
             return;
         }
         running = true;
+        lastStepUptime = 0; // re-anchor dt so a resume doesn't teleport the monster
         post(frame);
     }
 
@@ -102,8 +106,23 @@ final class ArenaView extends View {
         if (getWidth() == 0 || radius == 0) {
             return;
         }
-        x += vx;
-        y += vy;
+        // Frame-rate independent movement: advance by velocity × elapsed time, not
+        // a fixed step per frame. The elapsed time comes from
+        // SystemClock.uptimeMillis() (CLOCK_MONOTONIC), which the speedhack scales —
+        // so at 4x the monster covers 4x the ground per real second even though the
+        // draw stays vsync-locked at 60fps, and at 0.25x it crawls. vx/vy remain
+        // "pixels per FRAME_MS frame" so 1x matches the old fixed-step behaviour.
+        long now = SystemClock.uptimeMillis();
+        long dt = lastStepUptime == 0 ? FRAME_MS : now - lastStepUptime;
+        lastStepUptime = now;
+        if (dt < 0) {
+            dt = 0;
+        } else if (dt > 250) {
+            dt = 250; // cap a jump after a pause / GC hitch (also bounds max speed)
+        }
+        float scale = dt / (float) FRAME_MS;
+        x += vx * scale;
+        y += vy * scale;
         float top = radius + barClearance();
         if (x < radius) {
             x = radius;

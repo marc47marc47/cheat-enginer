@@ -21,8 +21,9 @@
 #   --no-inject      不注入，只拆解→重組→重簽（換簽章 / 驗證管線用）
 #   --engine FILE    引擎來源 APK（預設：android/dist/cheat-engine-*.apk）
 #   --inject-overlay 明確要求注入（預設已開，相容保留）
-#   --so FILE        用指定的 loose libce_engine.so 覆寫 arm64-v8a（預設：
-#                    ../target/aarch64-linux-android/release/libce_engine.so 若存在）
+#   --so FILE        用指定的 loose libce_engine.so 覆寫 arm64-v8a。不給時,預設
+#                    以「新建的 release .so」覆寫每個 ABI:優先 overlay/src/main/
+#                    jniLibs/<abi>（cargoNdk --release）,退回 target/<triple>/release/
 #   --pause          拆解後暫停，讓你手動改 work 目錄，按 Enter 再繼續
 #   --keystore FILE  簽章用的 keystore（預設：signing.properties → debug keystore）
 #   --ks-pass PASS   keystore 密碼（預設：android，或 signing.properties 裡的值）
@@ -291,22 +292,40 @@ inject_overlay() {
   done
   ok "注入 libce_engine.so × $so 個 ABI"
 
-  # ②′ 用指定的 loose .so 覆寫 arm64-v8a（--so；預設抓 target/release 的新建產物）
-  local so_src="$SO_OVERRIDE"
-  if [ -z "$so_src" ]; then
-    local def_ndk="$SCRIPT_DIR/overlay/src/main/jniLibs/arm64-v8a/libce_engine.so"
-    local def_cargo="$SCRIPT_DIR/../target/aarch64-linux-android/release/libce_engine.so"
-    if [ -f "$def_ndk" ]; then
-      so_src="$def_ndk"
-    elif [ -f "$def_cargo" ]; then
-      so_src="$def_cargo"
-    fi
-  fi
-  if [ -n "$so_src" ]; then
-    [ -f "$so_src" ] || die "--so 指定的檔案不存在：$so_src"
+  # ②′ 用新建的 release .so 覆寫每個 ABI。
+  #    來源優先序:overlay/src/main/jniLibs/<abi>（build.sh / pack.sh 的 cargoNdk
+  #    --release 產物）→ 退回 target/<triple>/release/libce_engine.so（cargo release
+  #    輸出）。這樣注入的必是最新 release 原生庫,而非 engine APK 裡可能較舊的那份。
+  #    `--so FILE` 仍只覆寫 arm64-v8a(相容保留)。
+  if [ -n "$SO_OVERRIDE" ]; then
+    [ -f "$SO_OVERRIDE" ] || die "--so 指定的檔案不存在：$SO_OVERRIDE"
     mkdir -p "$WORK/lib/arm64-v8a"
-    cp "$so_src" "$WORK/lib/arm64-v8a/libce_engine.so"
-    ok "arm64-v8a 改用指定的 .so：$so_src（$(wc -c < "$so_src") bytes）"
+    cp "$SO_OVERRIDE" "$WORK/lib/arm64-v8a/libce_engine.so"
+    ok "arm64-v8a 改用指定的 .so：$SO_OVERRIDE（$(wc -c < "$SO_OVERRIDE") bytes）"
+  else
+    local jni="$SCRIPT_DIR/overlay/src/main/jniLibs"
+    local tgt="$SCRIPT_DIR/../target"
+    local refreshed=0 abi triple src
+    for abi in arm64-v8a armeabi-v7a x86_64; do
+      case "$abi" in
+        arm64-v8a)   triple=aarch64-linux-android ;;
+        armeabi-v7a) triple=armv7-linux-androideabi ;;
+        x86_64)      triple=x86_64-linux-android ;;
+      esac
+      src=""
+      if [ -f "$jni/$abi/libce_engine.so" ]; then
+        src="$jni/$abi/libce_engine.so"
+      elif [ -f "$tgt/$triple/release/libce_engine.so" ]; then
+        src="$tgt/$triple/release/libce_engine.so"
+      fi
+      if [ -n "$src" ]; then
+        mkdir -p "$WORK/lib/$abi"
+        cp "$src" "$WORK/lib/$abi/libce_engine.so"
+        refreshed=$((refreshed + 1))
+      fi
+    done
+    [ "$refreshed" -gt 0 ] \
+      && ok "以新建的 release .so 覆寫 $refreshed 個 ABI（jniLibs / target release）"
   fi
 
   # ③ manifest：加 provider（自動啟動點）。用 python 改，避免 sed 跳脫地獄。

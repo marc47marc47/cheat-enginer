@@ -40,6 +40,13 @@ public final class OverlayController {
     private WindowManager.LayoutParams bubbleParams;
     private boolean expanded;
 
+    // -- Speed-tab vsync experiments (see android/TODO-vsync.md) --------------
+    /** Frame-pacing pulse: a bg thread nudging the main Looper at a fine rate. */
+    private volatile boolean pacing;
+    private Thread pacer;
+    /** Requested display refresh (Hz); 0 = system default. Best-effort. */
+    private float desiredRefreshRate;
+
     private OverlayController(Application application) {
         this.application = application;
         this.prefs = application.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
@@ -222,6 +229,7 @@ public final class OverlayController {
     }
 
     synchronized void detachWindows() {
+        setFramePacing(false); // never let the pacer thread outlive the overlay
         hidePanel();
         if (bubble != null && host != null) {
             bubble.detach(host.windowManager());
@@ -265,6 +273,8 @@ public final class OverlayController {
         params.gravity = Gravity.BOTTOM | Gravity.START;
         params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
                 | WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED;
+        // Reapply a standing refresh-rate request across panel reopen (0 = default).
+        params.preferredRefreshRate = desiredRefreshRate;
 
         try {
             host.windowManager().addView(panel, params);
@@ -303,6 +313,92 @@ public final class OverlayController {
             host.windowManager().updateViewLayout(bubble, bubbleParams);
         } catch (IllegalArgumentException ignored) {
             // Detached mid-drag.
+        }
+    }
+
+    // -- Speed-tab vsync experiments -----------------------------------------
+
+    /**
+     * Frame-pacing pulse. The game's per-frame step is a {@code postDelayed}
+     * message whose due time is already scaled by the clock hook, but the main
+     * thread sleeps in {@code epoll_pwait(-1)} between vsyncs (60 Hz) so it never
+     * runs the overdue step early — movement stays 60 fps. A background thread
+     * that pokes the main Looper awake ~1000×/s lets that scaled step dispatch at
+     * its scaled rate, so movement tracks the factor (4× faster / 0.25× slower).
+     * Costs CPU while on; independent of the factor (no visible effect at 1×).
+     */
+    synchronized void setFramePacing(boolean on) {
+        if (on == pacing) {
+            return;
+        }
+        pacing = on;
+        if (on) {
+            final Handler main = new Handler(application.getMainLooper());
+            final Runnable noop = () -> {};
+            pacer = new Thread(() -> {
+                // Nudge the main Looper awake every ~PULSE_NS. Each post wakes its
+                // epoll_pwait so MessageQueue re-reads the (scaled) uptime and
+                // dispatches the game's overdue, clock-scaled frame step — instead
+                // of it sleeping until the next vsync (which caps movement at 60fps).
+                // The BACKGROUND thread does the busy-wait, so the main thread stays
+                // free to actually run the extra steps + draws (pegging the main
+                // thread instead starves them). Fine granularity matters: a plain
+                // Thread.sleep(1) is too coarse and wakes no faster than vsync.
+                final long PULSE_NS = 2_000_000L; // 2 ms → ~500 wakes/s
+                long next = System.nanoTime();
+                while (pacing) {
+                    main.post(noop);
+                    next += PULSE_NS;
+                    while (pacing && System.nanoTime() < next) {
+                        // busy-wait for fine timing (this thread only)
+                    }
+                }
+            }, "ce-frame-pacer");
+            pacer.setDaemon(true);
+            pacer.start();
+        } else {
+            Thread t = pacer;
+            pacer = null;
+            if (t != null) {
+                t.interrupt();
+            }
+        }
+    }
+
+    boolean isFramePacing() {
+        return pacing;
+    }
+
+    /**
+     * Best-effort display-refresh request (Hz; 0 = system default). Sets the
+     * overlay window's {@code preferredRefreshRate}; the system may lower the
+     * whole display to it, slowing the game's vsync — but only if the panel is
+     * showing a supported mode. On a single-mode display (typical emulator) this
+     * is a no-op.
+     */
+    synchronized void setPreferredRefreshRate(float hz) {
+        desiredRefreshRate = hz;
+        applyRefreshRate();
+    }
+
+    float preferredRefreshRate() {
+        return desiredRefreshRate;
+    }
+
+    private void applyRefreshRate() {
+        if (panel == null || host == null) {
+            return;
+        }
+        android.view.ViewGroup.LayoutParams lp = panel.getLayoutParams();
+        if (!(lp instanceof WindowManager.LayoutParams)) {
+            return;
+        }
+        WindowManager.LayoutParams wlp = (WindowManager.LayoutParams) lp;
+        wlp.preferredRefreshRate = desiredRefreshRate;
+        try {
+            host.windowManager().updateViewLayout(panel, wlp);
+        } catch (IllegalArgumentException ignored) {
+            // Panel detached.
         }
     }
 

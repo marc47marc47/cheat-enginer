@@ -1,0 +1,29 @@
+# The injected payload. Built separately from the engine (it is a runtime
+# artifact the scanner writes into a target, not a compile-time dependency).
+#
+#   cargo build --release   # from this directory → target/release/ce_speedhook.dll
+#
+# It shares the exact SpeedClock source with the engine via a #[path] include,
+# so the shared-memory layout can never drift between the two.
+[package]
+name = "ce_speedhook"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "ce_speedhook"
+crate-type = ["cdylib"]
+
+[profile.release]
+panic = "abort"   # nothing may unwind out of an injected DLL's hook
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_SystemServices",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Threading",
+    "Win32_System_Memory",
+    "Win32_System_Performance",
+    "Win32_System_Diagnostics_ToolHelp",
+] }

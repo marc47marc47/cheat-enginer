@@ -1,3 +1,5 @@
 /target
+# Nested crate build dirs (speedhook-payload*, examples, …) — ignore target/ at any depth.
+target/
 /cheat-engine
 .cargo/config.toml

@@ -18,6 +18,7 @@ pub mod platform;
 pub mod process;
 pub mod scan;
 pub mod session;
+pub mod speedhack;
 
 #[cfg(feature = "tui")]
 pub mod ui;

@@ -265,21 +265,34 @@ else
   warn "找不到 apksigner，略過簽章比對——這是共用 uid 的必要條件，請自行確認"
 fi
 
-# --- 5. arm64 的 16 KB page 對齊 -------------------------------------------
-# Android 15 起 64 位元裝置要求 16 KB page 支援。
+# --- 5. release 原生庫 --------------------------------------------------------
+# 打包進 APK 的 libce_engine.so 是 cargoNdk 以 `--release` 交叉編譯後放進 jniLibs
+# 的(見 overlay/build.gradle.kts:「build --release --lib」),gradle 只是把它們塞進
+# (debug 簽章的)APK。這裡明確以 jniLibs 作為 release .so 來源並驗證三個 ABI 都在,
+# 確保 APK 帶的是 release 原生庫、而不是缺檔或殘留。
+JNILIBS="$SCRIPT_DIR/overlay/src/main/jniLibs"
+for abi in arm64-v8a armeabi-v7a x86_64; do
+  [ -f "$JNILIBS/$abi/libce_engine.so" ] \
+    || die "缺少 release 原生庫 $JNILIBS/$abi/libce_engine.so（cargoNdk --release 應產出）"
+done
+ok "三個 ABI 的 release libce_engine.so 都在 jniLibs"
+
+# 16 KB page 對齊:Android 15 起 64 位元裝置要求。arm64-v8a 與 x86_64 都是 64 位元。
 READELF=""
 for r in "$SDK"/ndk/*/toolchains/llvm/prebuilt/*/bin/llvm-readelf.exe \
          "$SDK"/ndk/*/toolchains/llvm/prebuilt/*/bin/llvm-readelf; do
   [ -f "$r" ] && READELF="$r" && break
 done
-SO64="$SCRIPT_DIR/overlay/src/main/jniLibs/arm64-v8a/libce_engine.so"
-if [ -n "$READELF" ] && [ -f "$SO64" ]; then
-  align="$("$READELF" -l "$(winpath "$SO64")" 2>/dev/null | awk '/ LOAD /{print $NF; exit}')"
-  if [ "$align" = "0x4000" ]; then
-    ok "arm64-v8a 為 16 KB page 對齊（$align）"
-  else
-    warn "arm64-v8a 的 LOAD 對齊是 $align，不是 0x4000；Android 15 裝置可能載不起來"
-  fi
+if [ -n "$READELF" ]; then
+  for abi in arm64-v8a x86_64; do
+    SO64="$JNILIBS/$abi/libce_engine.so"
+    align="$("$READELF" -l "$(winpath "$SO64")" 2>/dev/null | awk '/ LOAD /{print $NF; exit}')"
+    if [ "$align" = "0x4000" ]; then
+      ok "$abi 為 16 KB page 對齊（$align）"
+    else
+      warn "$abi 的 LOAD 對齊是 $align，不是 0x4000；Android 15 裝置可能載不起來"
+    fi
+  done
 else
   note "略過 page 對齊檢查（找不到 llvm-readelf）"
 fi
