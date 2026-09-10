@@ -14,8 +14,13 @@
 //! and call it. Nothing here is hand-written machine code.
 
 #![cfg(windows)]
+// The MSVC linker prints "Creating library …" for the export lib of every
+// cdylib; that is not something to act on, so quiet the linker-message lint.
+#![allow(linker_messages)]
 
 // The exact clock the engine uses, shared by source so the layout cannot drift.
+// The payload only reads it (`scale`), so its `factor`/`set_factor` are dead here.
+#[allow(dead_code)]
 #[path = "../../src/speedhack/clock.rs"]
 mod clock;
 use clock::SpeedClock;
@@ -157,63 +162,102 @@ fn skip_module(sz_module: &[u16; 256]) -> bool {
 
 const INVALID: HANDLE = -1isize as HANDLE;
 
+/// Whether `[rva, rva+need)` stays inside a module of `size` bytes. Every read
+/// below goes through this: a real process (Unity, say) carries dozens of
+/// modules and some carry import tables that do not walk the way a textbook PE
+/// does. Trusting the layout and reading off the end of the mapped image faults
+/// the *target* — this keeps every access inside the module's own image.
+#[inline]
+fn in_image(rva: usize, need: usize, size: usize) -> bool {
+    rva.checked_add(need).is_some_and(|end| end <= size)
+}
+
 /// Walk one module's import table, redirecting `QueryPerformanceCounter` slots.
+/// Defensive throughout: validates the headers, bounds every RVA against
+/// `SizeOfImage`, bounds the descriptor walk by the import directory size, and
+/// caps every loop — a malformed or unexpected module is skipped, never faulted.
 fn patch_module(base: usize) {
     if base == 0 {
         return;
     }
     unsafe {
-        // DOS header → PE header.
-        let e_lfanew = read::<i32>(base + 0x3C) as usize;
+        // DOS header → PE header. e_lfanew is small in any real image.
+        let e_lfanew = read::<u32>(base + 0x3C) as usize;
+        if e_lfanew > 0x1000 {
+            return;
+        }
         let nt = base + e_lfanew;
         if read::<u32>(nt) != 0x0000_4550 {
             return; // not "PE\0\0"
         }
-        // Optional header sits after Signature(4) + FileHeader(20); its
-        // DataDirectory begins at offset 112 (PE32+), entry 1 is the imports.
+        // Optional header after Signature(4) + FileHeader(20). Only PE32+ (x64
+        // process ⇒ x64 modules); anything else is skipped rather than misparsed.
         let opt = nt + 24;
-        let import_rva = read::<u32>(opt + 112 + 1 * 8) as usize;
-        if import_rva == 0 {
+        if read::<u16>(opt) != 0x020b {
+            return; // not IMAGE_NT_OPTIONAL_HDR64_MAGIC
+        }
+        let size_of_image = read::<u32>(opt + 56) as usize;
+        if size_of_image < 0x1000 {
             return;
         }
-        // Walk IMAGE_IMPORT_DESCRIPTORs until a zeroed one.
-        let mut desc = base + import_rva;
-        loop {
-            let orig_first = read::<u32>(desc + 0) as usize; // OriginalFirstThunk (INT)
+        // DataDirectory[1] = import table: RVA at opt+120, Size at opt+124.
+        let import_rva = read::<u32>(opt + 120) as usize;
+        let import_size = read::<u32>(opt + 124) as usize;
+        if import_rva == 0 || !in_image(import_rva, 20, size_of_image) {
+            return;
+        }
+        // Cap the descriptor count by the directory size (each entry is 20 B),
+        // and hard-cap regardless — never trust the terminator alone.
+        let max_desc = (import_size / 20).clamp(1, 8192);
+        let mut desc_rva = import_rva;
+        for _ in 0..max_desc {
+            if !in_image(desc_rva, 20, size_of_image) {
+                break;
+            }
+            let desc = base + desc_rva;
+            let orig_first = read::<u32>(desc) as usize; // OriginalFirstThunk (INT)
             let name_rva = read::<u32>(desc + 12) as usize; // Name
             let first = read::<u32>(desc + 16) as usize; // FirstThunk (IAT)
             if name_rva == 0 && first == 0 {
-                break;
+                break; // the real terminator
             }
             // Names come from the INT if present, else from the IAT itself.
             let names = if orig_first != 0 { orig_first } else { first };
             if names != 0 && first != 0 {
-                patch_thunks(base, names, first);
+                patch_thunks(base, names, first, size_of_image);
             }
-            desc += 20; // sizeof IMAGE_IMPORT_DESCRIPTOR
+            desc_rva += 20;
         }
     }
 }
 
 /// For one import descriptor, patch the IAT entry whose name is
-/// `QueryPerformanceCounter`.
-unsafe fn patch_thunks(base: usize, names_rva: usize, iat_rva: usize) {
-    let mut i = 0usize;
-    loop {
-        let name_thunk = unsafe { read::<u64>(base + names_rva + i * 8) };
+/// `QueryPerformanceCounter`. Every RVA is bounded against `size_of_image`.
+unsafe fn patch_thunks(base: usize, names_rva: usize, iat_rva: usize, size_of_image: usize) {
+    // 23 chars + NUL; the bound for reading an IMAGE_IMPORT_BY_NAME's name.
+    const QPC: &[u8] = b"QueryPerformanceCounter";
+    for i in 0..8192usize {
+        let nr = names_rva + i * 8;
+        if !in_image(nr, 8, size_of_image) {
+            break;
+        }
+        let name_thunk = unsafe { read::<u64>(base + nr) };
         if name_thunk == 0 {
             break;
         }
         // High bit set → import by ordinal; skip (no name to match).
         if name_thunk & 0x8000_0000_0000_0000 == 0 {
             // IMAGE_IMPORT_BY_NAME: u16 hint then a C string.
-            let name_ptr = base + (name_thunk as usize) + 2;
-            if unsafe { cstr_eq(name_ptr, b"QueryPerformanceCounter") } {
-                let slot = base + iat_rva + i * 8;
-                unsafe { write_ptr(slot, hook_qpc as usize) };
+            let name_off = name_thunk as usize + 2;
+            if in_image(name_off, QPC.len() + 1, size_of_image)
+                && unsafe { cstr_eq(base + name_off, QPC) }
+            {
+                let ir = iat_rva + i * 8;
+                if in_image(ir, 8, size_of_image) {
+                    unsafe { write_ptr(base + ir, hook_qpc as *const () as usize) };
+                }
             }
         }
-        i += 1;
     }
 }
 

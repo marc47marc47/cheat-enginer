@@ -25,17 +25,25 @@ pub mod windows;
 #[cfg(all(unix, not(target_os = "android")))]
 pub mod linux;
 
-/// Sane bounds. Outside these the target's own timeouts (ANR watchdog, GC,
-/// input) get unstable enough that the demo stops being a demo.
+/// Sane bounds for a *running* speed. Outside these the target's own timeouts
+/// (ANR watchdog, GC, input) get unstable enough that the demo stops being a
+/// demo. `0.0` is special-cased as a freeze (pause) — see [`clamp`].
 pub const MIN_FACTOR: f64 = 0.1;
 pub const MAX_FACTOR: f64 = 8.0;
 
 fn clamp(factor: f64) -> f64 {
-    if factor.is_finite() {
-        factor.clamp(MIN_FACTOR, MAX_FACTOR)
-    } else {
-        1.0
+    if !factor.is_finite() {
+        return 1.0;
     }
+    // 0 (or below) = freeze the clock (a true pause). The desktop backends hook
+    // the target *cross-process*, so freezing the target's clock never touches
+    // the scanner's own UI — a real pause. Android's in-process overlay must not
+    // send 0 (it shares the target's main thread; a freeze would freeze the
+    // overlay too), so there the "pause" slows to a low factor instead.
+    if factor <= 0.0 {
+        return 0.0;
+    }
+    factor.clamp(MIN_FACTOR, MAX_FACTOR)
 }
 
 /// Set the speed multiplier. `1.0` is real time.

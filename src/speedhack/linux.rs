@@ -153,7 +153,7 @@ unsafe fn remote_dlopen(pid: libc::pid_t, so_path: &str) -> bool {
         Some(b) => b,
         None => return false,
     };
-    let our_dlopen = libc::dlopen as usize;
+    let our_dlopen = libc::dlopen as *const () as usize;
     let dlopen_off = our_dlopen.wrapping_sub(our_libc);
     let target_dlopen = their_libc.wrapping_add(dlopen_off);
 

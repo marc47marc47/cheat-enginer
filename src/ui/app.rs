@@ -27,6 +27,7 @@ pub enum Screen {
     ProcessList,
     Main,
     HexViewer,
+    Speed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -111,6 +112,14 @@ pub struct App {
 
     // Main panel focus
     pub main_panel: MainPanel,
+
+    // Speed control (F4). Cross-process speedhack of the attached target.
+    /// Desired running speed. 1.0 = real time.
+    pub speed_factor: f64,
+    /// Whether the payload has been injected into the attached target yet.
+    pub speed_injected: bool,
+    /// True while the target is frozen (factor 0) — a real pause, cross-process.
+    pub speed_paused: bool,
 }
 
 impl App {
@@ -142,6 +151,9 @@ impl App {
             hex_viewer: HexViewer::new(),
             last_hex_read: Instant::now(),
             main_panel: MainPanel::Scanner,
+            speed_factor: 1.0,
+            speed_injected: false,
+            speed_paused: false,
         }
     }
 
@@ -532,6 +544,12 @@ impl App {
                 }
                 return;
             }
+            KeyCode::F(4) => {
+                if self.process_handle.is_some() {
+                    self.screen = Screen::Speed;
+                }
+                return;
+            }
             _ => {}
         }
 
@@ -539,6 +557,7 @@ impl App {
             Screen::ProcessList => self.handle_process_list_key(key),
             Screen::Main => self.handle_main_key(key),
             Screen::HexViewer => self.handle_hex_viewer_key(key),
+            Screen::Speed => self.handle_speed_key(key),
         }
     }
 
@@ -840,6 +859,95 @@ impl App {
         }
     }
 
+    // -- Speed control (F4) --------------------------------------------------
+
+    fn handle_speed_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Char('1') => self.set_speed(0.25),
+            KeyCode::Char('2') => self.set_speed(0.5),
+            KeyCode::Char('3') => self.set_speed(1.0),
+            KeyCode::Char('4') => self.set_speed(2.0),
+            KeyCode::Char('5') => self.set_speed(4.0),
+            KeyCode::Char('+') | KeyCode::Char('=') => self.set_speed(self.speed_factor + 0.05),
+            KeyCode::Char('-') | KeyCode::Char('_') => self.set_speed(self.speed_factor - 0.05),
+            KeyCode::Char('r') => self.set_speed(1.0),
+            KeyCode::Char(' ') | KeyCode::Char('p') => self.toggle_pause(),
+            _ => {}
+        }
+    }
+
+    /// Snap to the 0.05 grid, clamp to the running range, and apply.
+    fn set_speed(&mut self, f: f64) {
+        let f = (f * 20.0).round() / 20.0;
+        self.speed_factor = f.clamp(crate::speedhack::MIN_FACTOR, crate::speedhack::MAX_FACTOR);
+        self.speed_paused = false;
+        self.apply_speed();
+    }
+
+    /// Toggle a true freeze (factor 0). Safe on desktop: the hook is
+    /// cross-process, so freezing the target does not touch this UI.
+    fn toggle_pause(&mut self) {
+        self.speed_paused = !self.speed_paused;
+        self.apply_speed();
+    }
+
+    /// Inject the payload into the attached target on first use, then push the
+    /// effective factor (0 while paused, else the desired speed).
+    fn apply_speed(&mut self) {
+        let Some(pid) = self.attached_process.as_ref().map(|p| p.pid) else {
+            self.set_error("attach to a process first (F1)".into());
+            return;
+        };
+        if !self.speed_injected {
+            match Self::speed_payload_path() {
+                Some(path) => {
+                    if crate::speedhack::inject(pid, &path) {
+                        self.speed_injected = true;
+                    } else {
+                        self.set_error(format!("speedhook inject failed (pid {pid})"));
+                        return;
+                    }
+                }
+                None => {
+                    self.set_error("speedhook payload not found — build it (./build.sh)".into());
+                    return;
+                }
+            }
+        }
+        let effective = if self.speed_paused { 0.0 } else { self.speed_factor };
+        crate::speedhack::set_factor(effective);
+    }
+
+    /// Locate the injected payload: next to the exe first, then the dev tree.
+    fn speed_payload_path() -> Option<String> {
+        #[cfg(windows)]
+        let (name, dev) = (
+            "ce_speedhook.dll",
+            "speedhook-payload/target/release/ce_speedhook.dll",
+        );
+        #[cfg(all(unix, not(target_os = "android")))]
+        let (name, dev) = (
+            "libce_speedhook_linux.so",
+            "speedhook-payload-linux/target/x86_64-unknown-linux-gnu/release/libce_speedhook_linux.so",
+        );
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(dir) = exe.parent() {
+                let p = dir.join(name);
+                if p.is_file() {
+                    return Some(p.to_string_lossy().into_owned());
+                }
+            }
+        }
+        let p = std::path::Path::new(dev);
+        if p.is_file() {
+            return p
+                .canonicalize()
+                .ok()
+                .map(|c| c.to_string_lossy().into_owned());
+        }
+        None
+    }
+
     pub fn draw(&mut self, frame: &mut Frame) {
         let size = frame.area();
         let chunks = Layout::default()
@@ -897,6 +1005,9 @@ impl App {
             Screen::HexViewer => {
                 self.hex_viewer.draw(frame, chunks[1], self.input_mode);
             }
+            Screen::Speed => {
+                self.draw_speed_panel(frame, chunks[1]);
+            }
         }
 
         // Quit confirmation overlay
@@ -934,6 +1045,84 @@ impl App {
         frame.render_widget(dialog, dialog_area);
     }
 
+    fn draw_speed_panel(&self, frame: &mut Frame, area: Rect) {
+        let target = self
+            .attached_process
+            .as_ref()
+            .map(|p| format!("{} (pid {})", p.name, p.pid))
+            .unwrap_or_else(|| "— none —".into());
+        let inj = if self.speed_injected {
+            "injected"
+        } else {
+            "not injected yet (applies on first change)"
+        };
+
+        let (state, color) = if self.speed_paused {
+            ("PAUSED — frozen (0.00x)".to_string(), Color::Red)
+        } else if (self.speed_factor - 1.0).abs() < f64::EPSILON {
+            (format!("{:.2}x (normal)", self.speed_factor), Color::Gray)
+        } else {
+            (format!("{:.2}x", self.speed_factor), Color::Cyan)
+        };
+
+        let presets = [(0.25, '1'), (0.5, '2'), (1.0, '3'), (2.0, '4'), (4.0, '5')];
+        let mut preset_spans = vec![Span::raw("  Presets:  ")];
+        for (f, k) in presets {
+            let active = !self.speed_paused && (self.speed_factor - f).abs() < 1e-9;
+            let style = if active {
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::Gray)
+            };
+            preset_spans.push(Span::styled(format!(" {k}:{f:.2}x "), style));
+            preset_spans.push(Span::raw(" "));
+        }
+
+        let lines = vec![
+            Line::from(""),
+            Line::from(vec![
+                Span::raw("  Target:   "),
+                Span::styled(target, Style::default().fg(Color::Green)),
+            ]),
+            Line::from(vec![
+                Span::raw("  Hook:     "),
+                Span::styled(
+                    inj,
+                    Style::default().fg(if self.speed_injected {
+                        Color::Green
+                    } else {
+                        Color::DarkGray
+                    }),
+                ),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("  Speed:    ", Style::default().add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    state,
+                    Style::default().fg(color).add_modifier(Modifier::BOLD),
+                ),
+            ]),
+            Line::from(""),
+            Line::from(preset_spans),
+            Line::from(""),
+            Line::from("  +/- : nudge by 0.05      Space/p : pause (freeze)      r : reset to 1x"),
+            Line::from(""),
+            Line::from(Span::styled(
+                "  A real freeze: the clock hook runs inside the target, not in this UI.",
+                Style::default().fg(Color::DarkGray),
+            )),
+        ];
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title(" Game Speed (F4) ");
+        frame.render_widget(Paragraph::new(lines).block(block), area);
+    }
+
     fn draw_status_bar(&self, frame: &mut Frame, area: Rect) {
         let mut spans = vec![];
 
@@ -963,13 +1152,16 @@ impl App {
                 Screen::ProcessList => "F5:Refresh Enter:Attach Esc:Quit | Type to filter",
                 Screen::Main => match self.main_panel {
                     MainPanel::Scanner => {
-                        "F1:Proc F3:Hex Tab:Panel | t:Type s:Mode v:Value Enter:Scan r:Reset A:Auto a:Add"
+                        "F1:Proc F3:Hex F4:Speed Tab | t:Type s:Mode v:Value Enter:Scan r:Reset A:Auto a:Add"
                     }
                     MainPanel::AddressList => {
-                        "F1:Proc F3:Hex Tab:Panel | f:Freeze e:Edit d:Desc S:Save L:Load Del:Remove"
+                        "F1:Proc F3:Hex F4:Speed Tab | f:Freeze e:Edit d:Desc S:Save L:Load Del:Remove"
                     }
                 },
-                Screen::HexViewer => "F1:Proc F2:Main F3:Hex g:GoTo Up/Down:Scroll",
+                Screen::HexViewer => "F1:Proc F2:Main F4:Speed g:GoTo Up/Down:Scroll",
+                Screen::Speed => {
+                    "F1:Proc F2:Main | 1-5:Preset +/-:0.05 Space:Pause r:1x"
+                }
             };
             spans.push(Span::styled(
                 format!(" {help}"),
@@ -1113,6 +1305,39 @@ mod tests {
         // The scanner controls must be on the left of the same row.
         let type_line = lines.iter().find(|l| l.contains("[t]ype")).unwrap();
         assert!(type_line.find("[t]ype").unwrap() < 50);
+    }
+
+    #[test]
+    fn speed_snaps_and_clamps() {
+        let mut app = App::new();
+        app.set_speed(1.07);
+        assert!((app.speed_factor - 1.05).abs() < 1e-9, "snaps to the 0.05 grid");
+        app.set_speed(99.0);
+        assert_eq!(app.speed_factor, 8.0, "clamps to MAX");
+        app.set_speed(-5.0);
+        assert!((app.speed_factor - 0.1).abs() < 1e-9, "clamps to MIN (never 0 via +/-)");
+    }
+
+    #[test]
+    fn pause_toggles_without_losing_desired() {
+        let mut app = App::new();
+        app.set_speed(2.0);
+        assert!(!app.speed_paused);
+        app.toggle_pause();
+        assert!(app.speed_paused, "space freezes");
+        app.toggle_pause();
+        assert!(!app.speed_paused, "space again resumes");
+        assert_eq!(app.speed_factor, 2.0, "desired speed survives a pause");
+    }
+
+    #[test]
+    fn speed_screen_renders() {
+        let mut app = App::new();
+        app.screen = Screen::Speed;
+        app.speed_factor = 4.0;
+        let out = render(&mut app, 100, 24).join("\n");
+        assert!(out.contains("Game Speed"), "speed panel title");
+        assert!(out.contains("Presets"), "presets row present");
     }
 
     #[test]

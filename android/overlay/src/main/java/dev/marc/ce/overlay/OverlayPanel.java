@@ -46,6 +46,7 @@ final class OverlayPanel extends LinearLayout {
 
     private static final int BG = Color.argb(242, 18, 20, 25);
     private static final int FG = Color.argb(255, 222, 228, 236);
+    private static final int BRIGHT = Color.argb(255, 250, 252, 255); // input text — max legibility
     private static final int DIM = Color.argb(255, 140, 150, 165);
     private static final int ACCENT = Color.argb(255, 120, 200, 140);
     private static final int WARN = Color.argb(255, 235, 130, 120);
@@ -75,8 +76,6 @@ final class OverlayPanel extends LinearLayout {
 
     private ChoiceStrip speedChoice;
     private TextView speedStatus;
-    private boolean speedInstalled;
-    private boolean speedUnsupported;
     private ChoiceStrip speedRefresh;
 
     private final Runnable poll = new Runnable() {
@@ -180,8 +179,9 @@ final class OverlayPanel extends LinearLayout {
 
         valueInput = new EditText(context);
         valueInput.setHint("value");
-        valueInput.setTextColor(FG);
-        valueInput.setHintTextColor(DIM);
+        valueInput.setTextColor(BRIGHT);
+        valueInput.setTextSize(17f);
+        valueInput.setHintTextColor(Color.argb(255, 170, 180, 195));
         valueInput.setSingleLine(true);
         valueInput.setInputType(InputType.TYPE_CLASS_NUMBER
                 | InputType.TYPE_NUMBER_FLAG_SIGNED
@@ -350,11 +350,38 @@ final class OverlayPanel extends LinearLayout {
         speedChoice.setOnSelect(this::applySpeed);
         root.addView(speedChoice);
 
+        // 微調:以 0.05 為級距在目前倍率上加減(和上面的按鈕加起來就是想要的速度)。
+        LinearLayout fine = new LinearLayout(context);
+        fine.setOrientation(LinearLayout.HORIZONTAL);
+        fine.addView(button(context, "−0.05", v -> nudgeSpeed(-0.05)), weighted());
+        fine.addView(button(context, "+0.05", v -> nudgeSpeed(+0.05)), weighted());
+        root.addView(fine);
+
         speedStatus = label(context, "", DIM);
-        speedStatus.setTextSize(11f);
-        speedStatus.setPadding(0, controller.dp(8), 0, 0);
+        speedStatus.setTextSize(13f);
+        speedStatus.setPadding(0, controller.dp(8), 0, controller.dp(8));
         root.addView(speedStatus);
         updateSpeedStatus();
+
+        // 打開面板時暫停(凍結)遊戲。
+        final CheckBox pauseBox = new CheckBox(context);
+        pauseBox.setText("Pause game while this panel is open");
+        pauseBox.setTextColor(FG);
+        pauseBox.setChecked(controller.pauseWhileOpen());
+        pauseBox.setOnClickListener(v -> {
+            controller.setPauseWhileOpen(pauseBox.isChecked());
+            updateSpeedStatus();
+        });
+        root.addView(pauseBox);
+
+        TextView pauseBlurb = label(context,
+                "Slows the game to 0.15x while CE is open so it barely progresses; "
+                        + "resumes at the speed above when you close it or uncheck this. "
+                        + "(A true 0x freeze would also freeze CE's own display, so this "
+                        + "is a strong slow that keeps CE usable.)", DIM);
+        pauseBlurb.setTextSize(11f);
+        pauseBlurb.setPadding(0, 0, 0, controller.dp(8));
+        root.addView(pauseBlurb);
 
         // -- experimental: unlock vsync-locked movement (android/TODO-vsync.md) --
         TextView expTitle = label(context, "Unlock movement (experimental)", FG);
@@ -412,9 +439,9 @@ final class OverlayPanel extends LinearLayout {
         controller.setPreferredRefreshRate(REFRESH_HZ[index]);
     }
 
-    /** The chip whose factor is nearest the engine's current one. */
+    /** The chip whose factor is nearest the desired speed (for highlight). */
     private int currentSpeedIndex() {
-        double f = NativeBridge.nativeSpeedFactor();
+        double f = controller.speedFactor();
         int best = 2;
         double bestErr = Double.MAX_VALUE;
         for (int i = 0; i < SPEED_FACTORS.length; i++) {
@@ -427,19 +454,21 @@ final class OverlayPanel extends LinearLayout {
         return best;
     }
 
+    /** A chip sets the desired speed outright. */
     private void applySpeed(int index) {
-        // Install lazily, on the first tap: an app that never touches Speed
-        // never patches a single GOT slot.
-        if (!speedInstalled && !speedUnsupported) {
-            speedInstalled = NativeBridge.nativeSpeedInstall();
-            speedUnsupported = !speedInstalled;
-        }
-        if (speedUnsupported) {
+        controller.setSpeedFactor(SPEED_FACTORS[index]);
+        if (controller.speedUnsupported()) {
             speedChoice.setSelection(2); // back to 1x
-            updateSpeedStatus();
-            return;
         }
-        NativeBridge.nativeSpeedSet(SPEED_FACTORS[index]);
+        updateSpeedStatus();
+    }
+
+    /** +/- nudges the desired speed by 0.05 from wherever it is now. */
+    private void nudgeSpeed(double delta) {
+        controller.setSpeedFactor(controller.speedFactor() + delta);
+        if (!controller.speedUnsupported()) {
+            speedChoice.setSelection(currentSpeedIndex());
+        }
         updateSpeedStatus();
     }
 
@@ -447,24 +476,31 @@ final class OverlayPanel extends LinearLayout {
         if (speedStatus == null) {
             return;
         }
-        if (speedUnsupported) {
+        if (controller.speedUnsupported()) {
             speedStatus.setText("not supported on this ABI (needs arm64-v8a / x86_64)");
             speedStatus.setTextColor(WARN);
             speedChoice.setEnabled(false);
             return;
         }
-        double f = NativeBridge.nativeSpeedFactor();
-        speedStatus.setText(String.format("now %.2fx", f));
-        speedStatus.setTextColor(f == 1.0 ? DIM : ACCENT);
+        double f = controller.speedFactor();
+        if (controller.gamePaused()) {
+            speedStatus.setText(String.format("slowed to 0.15x — resumes at %.2fx", f));
+            speedStatus.setTextColor(WARN);
+        } else {
+            speedStatus.setText(String.format("now %.2fx", f));
+            speedStatus.setTextColor(f == 1.0 ? DIM : ACCENT);
+        }
     }
 
     // -- polling -------------------------------------------------------------
 
     void onShown() {
+        controller.onSpeedPanelShown(); // pause (freeze) the game if enabled
         handler.post(poll);
     }
 
     void onHidden() {
+        controller.onSpeedPanelHidden(); // resume the game
         handler.removeCallbacks(poll);
     }
 

@@ -11,6 +11,12 @@
 //! Building with `--no-default-features` leaves just the engine, which is what
 //! the Android library links against.
 
+// The MSVC linker prints "Creating library …" for the export lib of the
+// `cdylib` build; that is informational, not something to act on. Windows-only:
+// elsewhere the lint never fires, so an unconditional allow would itself be an
+// "unused attribute".
+#![cfg_attr(windows, allow(linker_messages))]
+
 pub mod address;
 pub mod error;
 pub mod hex;

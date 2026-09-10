@@ -47,6 +47,17 @@ public final class OverlayController {
     /** Requested display refresh (Hz); 0 = system default. Best-effort. */
     private float desiredRefreshRate;
 
+    // -- Game speed + pause (held here so it survives panel rebuilds and so the
+    //    panel can pause on open regardless of which tab is showing) -----------
+    /** Desired running speed (applied when not paused). 1.0 = real time. */
+    private double speedFactor = 1.0;
+    /** True while the game is frozen (panel open + pauseWhileOpen). */
+    private boolean gamePaused;
+    /** Freeze the game while the panel is open (user's request). Default on. */
+    private boolean pauseWhileOpen = true;
+    private boolean speedInstalled;
+    private boolean speedUnsupported;
+
     private OverlayController(Application application) {
         this.application = application;
         this.prefs = application.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
@@ -399,6 +410,90 @@ public final class OverlayController {
             host.windowManager().updateViewLayout(panel, wlp);
         } catch (IllegalArgumentException ignored) {
             // Panel detached.
+        }
+    }
+
+    // -- Game speed + pause --------------------------------------------------
+
+    private void ensureSpeedInstalled() {
+        if (speedInstalled || speedUnsupported) {
+            return;
+        }
+        speedInstalled = NativeBridge.nativeSpeedInstall();
+        speedUnsupported = !speedInstalled; // e.g. armeabi-v7a (Elf32) can't hook
+    }
+
+    /**
+     * The slowest speed used for "pause". A true 0 freezes the process's
+     * monotonic clock, which also freezes the overlay's own rendering (shared
+     * main thread) — verified on device — so pause slows to a crawl instead.
+     */
+    private static final double PAUSE_FACTOR = 0.15;
+
+    /** PAUSE_FACTOR (a crawl) while paused, otherwise the desired running speed. */
+    private void applyEffectiveSpeed() {
+        if (speedUnsupported) {
+            return;
+        }
+        NativeBridge.nativeSpeedSet(gamePaused ? PAUSE_FACTOR : speedFactor);
+    }
+
+    boolean speedUnsupported() {
+        return speedUnsupported;
+    }
+
+    double speedFactor() {
+        return speedFactor;
+    }
+
+    boolean gamePaused() {
+        return gamePaused;
+    }
+
+    boolean pauseWhileOpen() {
+        return pauseWhileOpen;
+    }
+
+    /** Desired running speed (chips / +/- buttons). Clamped to [0.1, 8] on a 0.05 grid. */
+    void setSpeedFactor(double f) {
+        if (f < 0.1) {
+            f = 0.1;
+        } else if (f > 8.0) {
+            f = 8.0;
+        }
+        speedFactor = Math.round(f * 20.0) / 20.0; // snap to 0.05
+        ensureSpeedInstalled();
+        applyEffectiveSpeed();
+    }
+
+    /** Toggle "freeze the game while the panel is open". Reflects immediately if it is. */
+    void setPauseWhileOpen(boolean on) {
+        pauseWhileOpen = on;
+        if (panel != null) { // panel currently showing
+            if (on) {
+                ensureSpeedInstalled();
+                gamePaused = !speedUnsupported;
+            } else {
+                gamePaused = false;
+            }
+            applyEffectiveSpeed();
+        }
+    }
+
+    /** Panel opened → freeze the game if the toggle is on. */
+    void onSpeedPanelShown() {
+        if (pauseWhileOpen) {
+            ensureSpeedInstalled();
+            gamePaused = !speedUnsupported;
+            applyEffectiveSpeed();
+        }
+    }
+
+    /** Panel closed → resume the game. */
+    void onSpeedPanelHidden() {
+        if (gamePaused) {
+            gamePaused = false;
+            applyEffectiveSpeed();
         }
     }
 

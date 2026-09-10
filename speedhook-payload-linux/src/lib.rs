@@ -17,6 +17,8 @@
 #![cfg(all(unix, not(target_os = "android")))]
 
 // The exact clock the engine uses, shared by source so the layout cannot drift.
+// The payload only reads it (`scale`), so its `factor`/`set_factor` are dead here.
+#[allow(dead_code)]
 #[path = "../../src/speedhack/clock.rs"]
 mod clock;
 use clock::SpeedClock;

@@ -74,9 +74,15 @@
       對一支 `clock_gettime`-driven 的 demo(可仿 tick_target 的 Linux 分支)實測注入與 4×/
       0.25×,並修 dlopen 解析/暫存器 ABI 的實機問題。
       _驗:`cargo check --target x86_64-unknown-linux-gnu`/`-musl` 皆過;payload crate 亦過。_
-- [ ] **B3 TUI Speed 控制** — `src/ui/*` 加 Speed 控制(鍵位/面板),對目前 attach
-      的目標 `set_factor`。桌面 per-target(綁 pid)。暫以 `examples/speed_inject.rs`
-      當手動測試 harness 代打。
+- [x] **B3 TUI Speed 控制** — `src/ui/app.rs` 加 **Speed 分頁(F4)**,對目前 attach 的
+      目標操作:presets `1-5`(0.25/0.5/1/2/4x)、`+/-` 微調 0.05、`r` 回 1x、`Space/p`
+      **真凍結暫停(factor 0)**——桌面跨行程,凍住目標時鐘不會影響 TUI 自己(不像
+      Android 會凍住 UI)。首次操作時自動注入 payload(`speed_payload_path()`:先找 exe
+      旁、再找 dev tree),之後 `set_factor`。`speedhack::clamp` 重新允許 0=freeze(桌面用;
+      Android Java 端永遠不送 0)。
+      _驗:`cargo test` **72 passed**(新增 speed_snaps_and_clamps / pause_toggles /
+      speed_screen_renders 三測);release 編過;注入/set_factor 機制本身見 B4。TUI 互動鍵
+      入無法在 Windows 自動化(crossterm 讀 console API 非 stdin),故以單元測 + B4 機制佐證。✓_
 - [x] **B4 桌面驗證** — `tick_target` → `speed_inject <pid> <factor>` 注入,固定牆鐘窗
       量 game clock 推進速率:**0.25×→實測 0.25×**、1×→1.09×、2×→2.14×、4×→4.30×
       (高倍率小幅超出是 log 每 50ms 才寫一行的取樣偏差,非變速誤差)。切換連續無
@@ -179,3 +185,9 @@
   的 .so(.init_array 建構子 + android 那套 ELF GOT-patch,factor 取自 shm)。全部 `cargo
   check` 過 host+gnu+musl,payload crate 亦過;**Windows 開發機無法實機跑,標 UNVERIFIED**。
   剩 B3(TUI 接線)、C0(文件)。
+- **2026-09-10** B3 完成:桌面 TUI 加 Speed 分頁(F4)。presets 1-5、+/- 微調 0.05、r 回
+  1x、Space/p 真凍結暫停(桌面跨行程,factor 0 不影響 TUI 自己)。首次操作自動注入
+  payload。`speedhack::clamp` 重新允許 0=freeze(桌面用;Android 端用 0.15x 因同行程凍結
+  會凍住 overlay)。`cargo test` 72 passed(+3 新測)、release 編過。Android 特有的
+  frame-pacing/refresh 實驗開關屬 vsync 解法,桌面(QPC 直接縮放、dt 遊戲即生效)不需要。
+  **Phase B(桌面)除 B2 Linux 實機驗證外全數完成。** 剩 C0 文件。
