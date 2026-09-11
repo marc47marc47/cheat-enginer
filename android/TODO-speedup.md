@@ -149,6 +149,19 @@
   測過:單一遞增 real 時鐘下,4 個 reader 併發、factor 被 hammer 5000 次,虛擬時間
   始終單調不減、無撕裂。第一版測用了亂序 real 時間軸誤判失敗,已修正為單一時鐘。
 
+- [resolved] **共用行程被商業遊戲的 init provider 拖垮 —— 手機 CE 反覆當機** — overlay
+  注入採 `sharedUserId "dev.marc.ce.shared"`,凡被注入的 package 都併入**同一個共用
+  行程** `dev.marc.ce.shared.proc`(R5CX12FER9E, uid 10701)。Android 16 上,商業遊戲
+  帶的 `com.google.android.gms.games.provider.PlayGamesInitProvider` 在共用行程情境
+  `ClassCastException`(ContextImpl 無法轉 Application),而**任一 ContentProvider 崩就
+  整個共用行程一起死** → CE app 跟著閃退。實測共用 uid 10701 曾同時有
+  `com.pockethaven.roguelegend`、`com.playstack.balatro.android`(皆帶該 provider),**先
+  移除 roguelegend 不夠、要兩個都移除**。移除後 uid 10701 只剩自己乾淨的
+  `dev.marc.ce.app`+`dev.marc.ce.game`,共用行程穩定(pid 存活、logcat 無 FATAL)、CE 與
+  dungeon-tap 都能啟動並共存。**通用規則**:任何帶 Play Games / gms init provider 的商業
+  遊戲一旦被注入並加進共用行程就會這樣崩;自製 demo(dungeon-tap 無此類 provider)不受
+  影響。修法只在界線內做「移除注入」,不去重打包剝除 provider。
+
 ---
 
 ## Log
@@ -191,3 +204,9 @@
   會凍住 overlay)。`cargo test` 72 passed(+3 新測)、release 編過。Android 特有的
   frame-pacing/refresh 實驗開關屬 vsync 解法,桌面(QPC 直接縮放、dt 遊戲即生效)不需要。
   **Phase B(桌面)除 B2 Linux 實機驗證外全數完成。** 剩 C0 文件。
+- **2026-09-11** 手機 CE 反覆當機結案(R5CX12FER9E / Android 16)。根因非引擎,而是
+  overlay 注入把**帶 `PlayGamesInitProvider` 的商業遊戲**併入共用行程 `dev.marc.ce.shared.proc`
+  (uid 10701),Android 16 下該 provider `ClassCastException` 拖垮整個共用行程。移除
+  roguelegend + balatro 後,uid 10701 只剩 `dev.marc.ce.app`+`dev.marc.ce.game`,共用行程
+  穩定(pid 存活、crash log clean),CE 與 dungeon-tap 都乾淨啟動、共存前景 `GameActivity` 正常。
+  詳見 Issues 的共用行程條目。
