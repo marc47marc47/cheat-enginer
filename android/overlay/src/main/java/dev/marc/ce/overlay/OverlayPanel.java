@@ -363,26 +363,6 @@ final class OverlayPanel extends LinearLayout {
         root.addView(speedStatus);
         updateSpeedStatus();
 
-        // 打開面板時暫停(凍結)遊戲。
-        final CheckBox pauseBox = new CheckBox(context);
-        pauseBox.setText("Pause game while this panel is open");
-        pauseBox.setTextColor(FG);
-        pauseBox.setChecked(controller.pauseWhileOpen());
-        pauseBox.setOnClickListener(v -> {
-            controller.setPauseWhileOpen(pauseBox.isChecked());
-            updateSpeedStatus();
-        });
-        root.addView(pauseBox);
-
-        TextView pauseBlurb = label(context,
-                "Slows the game to 0.15x while CE is open so it barely progresses; "
-                        + "resumes at the speed above when you close it or uncheck this. "
-                        + "(A true 0x freeze would also freeze CE's own display, so this "
-                        + "is a strong slow that keeps CE usable.)", DIM);
-        pauseBlurb.setTextSize(11f);
-        pauseBlurb.setPadding(0, 0, 0, controller.dp(8));
-        root.addView(pauseBlurb);
-
         // -- experimental: unlock vsync-locked movement (android/TODO-vsync.md) --
         TextView expTitle = label(context, "Unlock movement (experimental)", FG);
         expTitle.setTextSize(12f);
@@ -483,24 +463,17 @@ final class OverlayPanel extends LinearLayout {
             return;
         }
         double f = controller.speedFactor();
-        if (controller.gamePaused()) {
-            speedStatus.setText(String.format("slowed to 0.15x — resumes at %.2fx", f));
-            speedStatus.setTextColor(WARN);
-        } else {
-            speedStatus.setText(String.format("now %.2fx", f));
-            speedStatus.setTextColor(f == 1.0 ? DIM : ACCENT);
-        }
+        speedStatus.setText(String.format("now %.2fx", f));
+        speedStatus.setTextColor(f == 1.0 ? DIM : ACCENT);
     }
 
     // -- polling -------------------------------------------------------------
 
     void onShown() {
-        controller.onSpeedPanelShown(); // pause (freeze) the game if enabled
         handler.post(poll);
     }
 
     void onHidden() {
-        controller.onSpeedPanelHidden(); // resume the game
         handler.removeCallbacks(poll);
     }
 

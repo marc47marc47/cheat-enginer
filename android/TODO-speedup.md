@@ -210,3 +210,10 @@
   roguelegend + balatro 後,uid 10701 只剩 `dev.marc.ce.app`+`dev.marc.ce.game`,共用行程
   穩定(pid 存活、crash log clean),CE 與 dungeon-tap 都乾淨啟動、共存前景 `GameActivity` 正常。
   詳見 Issues 的共用行程條目。
+- **2026-09-11** 移除「打開 CE 時暫停遊戲」(pauseWhileOpen / PAUSE_FACTOR 0.15)。實機確認共用
+  行程 lag 的元凶是 `--shared-process` 把 Godot 引擎塞進同行程,其 `GLThread` render loop 持續燒
+  ~60% CPU(TerrariaExplorer 前景時共用行程 67.8%、SurfaceFlinger 32%)。clock-based 暫停只拖慢
+  讀時鐘的遊戲邏輯,**不會**讓 render thread 少畫 → 對此 CPU 佔用零幫助,故整個功能拿掉
+  (OverlayController 的 gamePaused/pauseWhileOpen/PAUSE_FACTOR/onSpeedPanelShown/Hidden +
+  OverlayPanel 的 Pause checkbox)。加速/微調(setSpeedFactor、+/- 0.05、presets)保留。
+  `:overlay` 編過、CE app 重裝。同批帶上 OverlayController stop→start bubble 不出現的修正。

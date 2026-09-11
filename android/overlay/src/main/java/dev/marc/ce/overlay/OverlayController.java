@@ -47,14 +47,9 @@ public final class OverlayController {
     /** Requested display refresh (Hz); 0 = system default. Best-effort. */
     private float desiredRefreshRate;
 
-    // -- Game speed + pause (held here so it survives panel rebuilds and so the
-    //    panel can pause on open regardless of which tab is showing) -----------
-    /** Desired running speed (applied when not paused). 1.0 = real time. */
+    // -- Game speed (held here so it survives panel rebuilds) ----------------
+    /** Desired running speed. 1.0 = real time. */
     private double speedFactor = 1.0;
-    /** True while the game is frozen (panel open + pauseWhileOpen). */
-    private boolean gamePaused;
-    /** Freeze the game while the panel is open (user's request). Default on. */
-    private boolean pauseWhileOpen = true;
     private boolean speedInstalled;
     private boolean speedUnsupported;
 
@@ -159,11 +154,7 @@ public final class OverlayController {
      * {@link #shutdownAsync}.
      */
     public synchronized void shutdown() {
-        collapse();
-        detachWindows();
-        if (host != null) {
-            host.release();
-        }
+        teardownWindows();
         if (sessionHandle != 0) {
             long handle = sessionHandle;
             sessionHandle = 0;
@@ -172,26 +163,58 @@ public final class OverlayController {
     }
 
     /**
+     * Takes every window down and drops the host, leaving the controller in the
+     * same "not installed" state a fresh instance has, so the next
+     * {@link #installGlobal} rebuilds the bubble instead of short-circuiting on a
+     * stale, already-released host. Main-thread only (touches WindowManager).
+     */
+    private synchronized void teardownWindows() {
+        collapse();
+        detachWindows();
+        if (host != null) {
+            host.release();
+            host = null;
+        }
+        // Views were built from the released host's Context; force a rebuild so
+        // a later reinstall does not try to re-add a stale, detached View.
+        bubble = null;
+        panel = null;
+    }
+
+    /**
      * Takes the windows down immediately and joins the engine's threads off the
      * main thread.
      *
      * <p>The window removal has to be synchronous - WindowManager is
-     * main-thread-only - but the native join must not be, or stopping the
-     * service while a scan is running is an ANR.
+     * main-thread-only - and it also resets the host here, on the main thread,
+     * so a Stop immediately followed by Start finds a clean controller and puts
+     * the bubble back. Only the native join is deferred, since a scan in flight
+     * makes it block for seconds; stopping the service on that thread is an ANR.
      */
     public void shutdownAsync(Runnable onDone) {
-        long handle = sessionHandle;
+        // Take ownership of the session handle under the lock, so the worker
+        // owns the join and nothing here or in a racing installGlobal touches it.
+        long handle;
+        synchronized (this) {
+            handle = sessionHandle;
+            sessionHandle = 0;
+        }
         if (handle != 0) {
             // Cancel first so the scan thread is already unwinding by the time
             // the join happens.
             NativeBridge.nativeCancelScan(handle);
         }
-        collapse();
-        detachWindows();
+        teardownWindows();
+        if (handle == 0) {
+            if (onDone != null) {
+                onDone.run();
+            }
+            return;
+        }
         HandlerThread thread = new HandlerThread("ce-shutdown");
         thread.start();
         new Handler(thread.getLooper()).post(() -> {
-            shutdown();
+            NativeBridge.nativeDestroy(handle);
             if (onDone != null) {
                 onDone.run();
             }
@@ -423,19 +446,12 @@ public final class OverlayController {
         speedUnsupported = !speedInstalled; // e.g. armeabi-v7a (Elf32) can't hook
     }
 
-    /**
-     * The slowest speed used for "pause". A true 0 freezes the process's
-     * monotonic clock, which also freezes the overlay's own rendering (shared
-     * main thread) — verified on device — so pause slows to a crawl instead.
-     */
-    private static final double PAUSE_FACTOR = 0.15;
-
-    /** PAUSE_FACTOR (a crawl) while paused, otherwise the desired running speed. */
+    /** Push the desired running speed to the native clock hook. */
     private void applyEffectiveSpeed() {
         if (speedUnsupported) {
             return;
         }
-        NativeBridge.nativeSpeedSet(gamePaused ? PAUSE_FACTOR : speedFactor);
+        NativeBridge.nativeSpeedSet(speedFactor);
     }
 
     boolean speedUnsupported() {
@@ -444,14 +460,6 @@ public final class OverlayController {
 
     double speedFactor() {
         return speedFactor;
-    }
-
-    boolean gamePaused() {
-        return gamePaused;
-    }
-
-    boolean pauseWhileOpen() {
-        return pauseWhileOpen;
     }
 
     /** Desired running speed (chips / +/- buttons). Clamped to [0.1, 8] on a 0.05 grid. */
@@ -464,37 +472,6 @@ public final class OverlayController {
         speedFactor = Math.round(f * 20.0) / 20.0; // snap to 0.05
         ensureSpeedInstalled();
         applyEffectiveSpeed();
-    }
-
-    /** Toggle "freeze the game while the panel is open". Reflects immediately if it is. */
-    void setPauseWhileOpen(boolean on) {
-        pauseWhileOpen = on;
-        if (panel != null) { // panel currently showing
-            if (on) {
-                ensureSpeedInstalled();
-                gamePaused = !speedUnsupported;
-            } else {
-                gamePaused = false;
-            }
-            applyEffectiveSpeed();
-        }
-    }
-
-    /** Panel opened → freeze the game if the toggle is on. */
-    void onSpeedPanelShown() {
-        if (pauseWhileOpen) {
-            ensureSpeedInstalled();
-            gamePaused = !speedUnsupported;
-            applyEffectiveSpeed();
-        }
-    }
-
-    /** Panel closed → resume the game. */
-    void onSpeedPanelHidden() {
-        if (gamePaused) {
-            gamePaused = false;
-            applyEffectiveSpeed();
-        }
     }
 
     int dp(int value) {
